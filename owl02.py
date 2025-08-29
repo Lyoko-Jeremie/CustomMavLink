@@ -4,7 +4,7 @@ from airplane_manager_owl02 import get_airplane_manager_owl02, AirplaneManagerOw
 from airplane_owl02 import AirplaneOwl02
 
 
-class Owl02Controller:
+class Owl02:
     """
     OWL02无人机控制器，对AirplaneManagerOwl02的封装
     提供与ph0apy.py兼容的API接口
