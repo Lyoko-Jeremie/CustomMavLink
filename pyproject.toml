@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools-scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "custom-mavlink"
+version = "1.0.0"
+authors = [
+    {name = "Lyoko-Jeremie"},
+]
+description = "基于Python的无人机管理系统，提供MavLink协议通信功能"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.7"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+keywords = ["mavlink", "drone", "uav", "aircraft", "management", "serial", "communication"]
+dependencies = [
+    "pymavlink",
+    "pyserial",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-asyncio", 
+    "black",
+    "flake8",
+    "mypy",
+]
+test = [
+    "pytest>=6.0",
+    "pytest-asyncio",
+]
+
+[project.urls]
+Homepage = "https://github.com/Lyoko-Jeremie/CustomMavLink"
+"Bug Reports" = "https://github.com/Lyoko-Jeremie/CustomMavLink/issues"
+"Source" = "https://github.com/Lyoko-Jeremie/CustomMavLink"
+
+[project.scripts]
+custom-mavlink = "airplane_control_example:main"
+
+[tool.setuptools]
+py-modules = ["airplane_owl02", "airplane_manager_owl02", "main", "owl02"]
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "__pycache__*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py37']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.7"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
