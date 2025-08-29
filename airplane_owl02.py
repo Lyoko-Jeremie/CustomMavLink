@@ -111,19 +111,19 @@ class AirplaneOwl02:
         self.is_init = False
         self._lock = threading.Lock()
 
-    async def init(self):
+    def init(self):
         """初始化无人机"""
         if self.is_init:
             return
         self.is_init = True
         logger.info(f"Initializing airplane with ID: {self.target_channel_id}")
-        await self.send_heartbeat()
+        self.send_heartbeat()
 
-    async def send_msg(self, msg):
+    def send_msg(self, msg):
         """发送消息给无人机"""
-        return await self.manager.send_msg(msg, self.target_channel_id)
+        return self.manager.send_msg(msg, self.target_channel_id)
 
-    async def send_heartbeat(self):
+    def send_heartbeat(self):
         """发送心跳包"""
         heartbeat = mavlink2.MAVLink_heartbeat_message(
             type=mavlink2.MAV_TYPE_GCS,
@@ -133,10 +133,10 @@ class AirplaneOwl02:
             system_status=mavlink2.MAV_STATE_ACTIVE,
             mavlink_version=2,
         )
-        await self.send_msg(heartbeat)
+        self.send_msg(heartbeat)
         logger.debug(f"Sent heartbeat to device {self.target_channel_id}")
 
-    async def trigger_get_autopilot_version(self):
+    def trigger_get_autopilot_version(self):
         """触发获取自动驾驶仪版本信息"""
         # 发送请求自动驾驶仪能力的命令
         request_cmd = mavlink2.MAVLink_command_long_message(
@@ -152,7 +152,7 @@ class AirplaneOwl02:
             param6=0,
             param7=0
         )
-        return await self.send_msg(request_cmd)
+        return self.send_msg(request_cmd)
 
     def _cache_packet_record(self, msg_id: int, message: Any, raw_packet: bytes = b''):
         """缓存数据包记录"""
@@ -330,7 +330,7 @@ class AirplaneOwl02:
         await self.send_msg(arm_cmd)
         logger.info(f"Sent arm command to device {self.target_channel_id}")
 
-    async def disarm(self):
+    def disarm(self):
         """锁定无人机"""
         disarm_cmd = mavlink2.MAVLink_command_long_message(
             target_system=1,
@@ -345,10 +345,10 @@ class AirplaneOwl02:
             param6=0,
             param7=0
         )
-        await self.send_msg(disarm_cmd)
+        self.send_msg(disarm_cmd)
         logger.info(f"Sent disarm command to device {self.target_channel_id}")
 
-    async def takeoff(self, altitude: float):
+    def takeoff(self, altitude: float):
         """起飞到指定高度"""
         takeoff_cmd = mavlink2.MAVLink_command_long_message(
             target_system=1,
@@ -363,10 +363,10 @@ class AirplaneOwl02:
             param6=0,
             param7=altitude  # altitude
         )
-        await self.send_msg(takeoff_cmd)
+        self.send_msg(takeoff_cmd)
         logger.info(f"Sent takeoff command to device {self.target_channel_id} at altitude {altitude}")
 
-    async def land(self):
+    def land(self):
         """降落"""
         land_cmd = mavlink2.MAVLink_command_long_message(
             target_system=1,
@@ -381,10 +381,10 @@ class AirplaneOwl02:
             param6=0,
             param7=0
         )
-        await self.send_msg(land_cmd)
+        self.send_msg(land_cmd)
         logger.info(f"Sent land command to device {self.target_channel_id}")
 
-    async def return_to_launch(self):
+    def return_to_launch(self):
         """返航"""
         rtl_cmd = mavlink2.MAVLink_command_long_message(
             target_system=1,
@@ -399,5 +399,5 @@ class AirplaneOwl02:
             param6=0,
             param7=0
         )
-        await self.send_msg(rtl_cmd)
+        self.send_msg(rtl_cmd)
         logger.info(f"Sent RTL command to device {self.target_channel_id}")

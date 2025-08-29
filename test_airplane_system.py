@@ -24,10 +24,10 @@ def test_basic_functionality():
     manager.init()
     
     # 模拟添加几个无人机
-    async def add_test_airplanes():
-        airplane1 = await manager.get_airplane(1)
-        airplane2 = await manager.get_airplane(2)
-        airplane3 = await manager.get_airplane(5)
+    def add_test_airplanes():
+        airplane1 = manager.get_airplane(1)
+        airplane2 = manager.get_airplane(2)
+        airplane3 = manager.get_airplane(5)
         
         logger.info("Added test airplanes")
         return airplane1, airplane2, airplane3
@@ -37,7 +37,7 @@ def test_basic_functionality():
     asyncio.set_event_loop(loop)
     
     try:
-        airplane1, airplane2, airplane3 = loop.run_until_complete(add_test_airplanes())
+        airplane1, airplane2, airplane3 = add_test_airplanes()
         
         # 检查状态
         logger.info(f"Airplane 1 state: armed={airplane1.state.is_armed}, mode={airplane1.state.fly_mode}")
@@ -49,14 +49,14 @@ def test_basic_functionality():
         logger.info(f"Manager statistics: {stats}")
         
         # 测试控制指令（模拟）
-        async def test_commands():
+        def test_commands():
             logger.info("Testing control commands...")
-            await airplane1.arm()
-            await airplane1.takeoff(10.0)
-            await airplane2.arm()
-            await airplane3.return_to_launch()
+            airplane1.arm()
+            airplane1.takeoff(10.0)
+            airplane2.arm()
+            airplane3.return_to_launch()
             
-        loop.run_until_complete(test_commands())
+        test_commands()
         
         logger.info("Basic functionality test completed")
         
@@ -106,8 +106,8 @@ def test_airplane_state_management():
     manager = create_manager()
     manager.init()
     
-    async def test_state_changes():
-        airplane = await manager.get_airplane(1)
+    def test_state_changes():
+        airplane = manager.get_airplane(1)
         
         # 测试状态获取
         initial_state = airplane.get_state()
@@ -166,7 +166,7 @@ def test_airplane_state_management():
     asyncio.set_event_loop(loop)
     
     try:
-        loop.run_until_complete(test_state_changes())
+        test_state_changes()
         logger.info("State management test completed")
     except Exception as e:
         logger.error(f"Error in state management test: {e}")
@@ -181,21 +181,21 @@ def test_multiple_airplanes():
     manager = create_manager()
     manager.init()
     
-    async def test_multiple():
+    def test_multiple():
         # 创建多个无人机
         airplanes = []
         for i in range(1, 6):  # 创建5个无人机，ID为1-5
-            airplane = await manager.get_airplane(i)
+            airplane = manager.get_airplane(i)
             airplanes.append(airplane)
             
         logger.info(f"Created {len(airplanes)} airplanes")
         
         # 发送控制命令给不同的无人机
-        await airplanes[0].arm()  # 无人机1解锁
-        await airplanes[1].takeoff(15.0)  # 无人机2起飞到15米
-        await airplanes[2].return_to_launch()  # 无人机3返航
-        await airplanes[3].land()  # 无人机4降落
-        await airplanes[4].disarm()  # 无人机5锁定
+        airplanes[0].arm()  # 无人机1解锁
+        airplanes[1].takeoff(15.0)  # 无人机2起飞到15米
+        airplanes[2].return_to_launch()  # 无人机3返航
+        airplanes[3].land()  # 无人机4降落
+        airplanes[4].disarm()  # 无人机5锁定
         
         # 获取所有无人机列表
         airplane_list = manager.get_airplane_list()
@@ -212,7 +212,7 @@ def test_multiple_airplanes():
     asyncio.set_event_loop(loop)
     
     try:
-        loop.run_until_complete(test_multiple())
+        test_multiple()
         logger.info("Multiple airplanes test completed")
     except Exception as e:
         logger.error(f"Error in multiple airplanes test: {e}")

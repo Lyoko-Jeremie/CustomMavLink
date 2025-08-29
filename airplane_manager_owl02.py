@@ -143,10 +143,7 @@ class AirplaneManagerOwl02:
 
                 for msg in mavlink_messages:
                     # 异步处理消息
-                    future = asyncio.run_coroutine_threadsafe(
-                        self._handle_mavlink_message(device_id, msg, payload), self.loop)
-
-                    # 不等待结果，避免阻塞
+                    self._handle_mavlink_message(device_id, msg, payload)
 
             except Exception as e:
                 logger.error(f"Error processing packet from device {device_id}: {e}")
@@ -169,11 +166,11 @@ class AirplaneManagerOwl02:
 
         return messages
 
-    async def _handle_mavlink_message(self, device_id: int, message: Any, raw_payload: bytes):
+    def _handle_mavlink_message(self, device_id: int, message: Any, raw_payload: bytes):
         """处理MavLink消息"""
         try:
             # 获取或创建无人机对象
-            airplane = await self.get_airplane(device_id)
+            airplane = self.get_airplane(device_id)
 
             # 解析状态
             airplane.parse_state_from_mavlink(message, raw_payload)
@@ -183,18 +180,18 @@ class AirplaneManagerOwl02:
         except Exception as e:
             logger.error(f"Error handling MavLink message from device {device_id}: {e}")
 
-    async def get_airplane(self, device_id: int) -> AirplaneOwl02:
+    def get_airplane(self, device_id: int) -> AirplaneOwl02:
         """获取或创建无人机对象"""
         if device_id not in self.airplanes:
             # 创建新的无人机对象
             airplane = AirplaneOwl02(device_id, self)
-            await airplane.init()
+            airplane.init()
             self.airplanes[device_id] = airplane
             logger.info(f"Created new airplane with ID: {device_id}")
 
         return self.airplanes[device_id]
 
-    async def send_msg(self, msg: Any, device_id: int):
+    def send_msg(self, msg: Any, device_id: int):
         """发送消息给指定设备"""
         if not self.serial_port or not self.serial_port.is_open:
             logger.error("Serial port is not open")
