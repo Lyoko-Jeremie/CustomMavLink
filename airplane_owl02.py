@@ -401,3 +401,374 @@ class AirplaneOwl02:
         )
         self.send_msg(rtl_cmd)
         logger.info(f"Sent RTL command to device {self.target_channel_id}")
+
+    def up(self, distance: int):
+        """上升指定距离 单位cm"""
+        # 使用位置偏移命令
+        offset_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_OFFSET_NED,
+            type_mask=0b110111111000,  # 只使用z位置
+            x=0, y=0, z=-distance/100.0,  # 负值表示上升，转换为米
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=0, yaw_rate=0
+        )
+        self.send_msg(offset_cmd)
+        logger.info(f"Sent up command to device {self.target_channel_id}, distance: {distance}cm")
+
+    def down(self, distance: int):
+        """下降指定距离 单位cm"""
+        offset_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_OFFSET_NED,
+            type_mask=0b110111111000,  # 只使用z位置
+            x=0, y=0, z=distance/100.0,  # 正值表示下降，转换为米
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=0, yaw_rate=0
+        )
+        self.send_msg(offset_cmd)
+        logger.info(f"Sent down command to device {self.target_channel_id}, distance: {distance}cm")
+
+    def forward(self, distance: int):
+        """前进指定距离 单位cm"""
+        offset_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_OFFSET_NED,
+            type_mask=0b110111111000,  # 只使用x位置
+            x=distance/100.0, y=0, z=0,  # 转换为米
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=0, yaw_rate=0
+        )
+        self.send_msg(offset_cmd)
+        logger.info(f"Sent forward command to device {self.target_channel_id}, distance: {distance}cm")
+
+    def back(self, distance: int):
+        """后退指定距离 单位cm"""
+        offset_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_OFFSET_NED,
+            type_mask=0b110111111000,  # 只使用x位置
+            x=-distance/100.0, y=0, z=0,  # 负值表示后退，转换为米
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=0, yaw_rate=0
+        )
+        self.send_msg(offset_cmd)
+        logger.info(f"Sent back command to device {self.target_channel_id}, distance: {distance}cm")
+
+    def left(self, distance: int):
+        """左移指定距离 单位cm"""
+        offset_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_OFFSET_NED,
+            type_mask=0b110111111000,  # 只使用y位置
+            x=0, y=-distance/100.0, z=0,  # 负值表示左移，转换为米
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=0, yaw_rate=0
+        )
+        self.send_msg(offset_cmd)
+        logger.info(f"Sent left command to device {self.target_channel_id}, distance: {distance}cm")
+
+    def right(self, distance: int):
+        """右移指定距离 单位cm"""
+        offset_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_OFFSET_NED,
+            type_mask=0b110111111000,  # 只使用y位置
+            x=0, y=distance/100.0, z=0,  # 正值表示右移，转换为米
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=0, yaw_rate=0
+        )
+        self.send_msg(offset_cmd)
+        logger.info(f"Sent right command to device {self.target_channel_id}, distance: {distance}cm")
+
+    def goto(self, x: int, y: int, h: int):
+        """移动到指定坐标处 单位cm"""
+        position_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_NED,
+            type_mask=0b110111111000,  # 使用位置控制
+            x=x/100.0, y=y/100.0, z=-h/100.0,  # 转换为米，z为负值
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=0, yaw_rate=0
+        )
+        self.send_msg(position_cmd)
+        logger.info(f"Sent goto command to device {self.target_channel_id}, x: {x}, y: {y}, h: {h}")
+
+    def rotate(self, degree: int):
+        """旋转指定角度"""
+        self.cw(degree)
+
+    def cw(self, degree: int):
+        """顺时针旋转指定角度"""
+        yaw_rad = degree * 3.14159 / 180.0  # 转换为弧度
+        yaw_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_NED,
+            type_mask=0b100111111111,  # 只使用yaw
+            x=0, y=0, z=0,
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=yaw_rad, yaw_rate=0
+        )
+        self.send_msg(yaw_cmd)
+        logger.info(f"Sent cw command to device {self.target_channel_id}, degree: {degree}")
+
+    def ccw(self, degree: int):
+        """逆时针旋转指定角度"""
+        yaw_rad = -degree * 3.14159 / 180.0  # 转换为弧度，负值表示逆时针
+        yaw_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_NED,
+            type_mask=0b100111111111,  # 只使用yaw
+            x=0, y=0, z=0,
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=yaw_rad, yaw_rate=0
+        )
+        self.send_msg(yaw_cmd)
+        logger.info(f"Sent ccw command to device {self.target_channel_id}, degree: {degree}")
+
+    def speed(self, speed: int):
+        """设置飞行速度"""
+        # 通过参数设置速度
+        speed_cmd = mavlink2.MAVLink_param_set_message(
+            target_system=1,
+            target_component=1,
+            param_id=b'MPC_XY_VEL_MAX'.ljust(16, b'\x00'),  # 水平最大速度参数
+            param_value=float(speed/100.0),  # 转换为m/s
+            param_type=mavlink2.MAV_PARAM_TYPE_REAL32
+        )
+        self.send_msg(speed_cmd)
+        logger.info(f"Sent speed command to device {self.target_channel_id}, speed: {speed}")
+
+    def high(self, high: int):
+        """移动到指定高度处 单位cm"""
+        position_cmd = mavlink2.MAVLink_set_position_target_local_ned_message(
+            time_boot_ms=0,
+            target_system=1,
+            target_component=1,
+            coordinate_frame=mavlink2.MAV_FRAME_LOCAL_NED,
+            type_mask=0b110111111011,  # 只使用z位置
+            x=0, y=0, z=-high/100.0,  # 转换为米，z为负值
+            vx=0, vy=0, vz=0,
+            afx=0, afy=0, afz=0,
+            yaw=0, yaw_rate=0
+        )
+        self.send_msg(position_cmd)
+        logger.info(f"Sent high command to device {self.target_channel_id}, height: {high}cm")
+
+    def led(self, r: int, g: int, b: int):
+        """设置无人机led色彩"""
+        # 使用LED控制命令
+        led_cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=mavlink2.MAV_CMD_USER_1,  # 自定义命令用于LED控制
+            confirmation=0,
+            param1=1,  # LED mode: solid color
+            param2=r,  # Red
+            param3=g,  # Green
+            param4=b,  # Blue
+            param5=0,
+            param6=0,
+            param7=0
+        )
+        self.send_msg(led_cmd)
+        logger.info(f"Sent LED command to device {self.target_channel_id}, RGB: ({r}, {g}, {b})")
+
+    def bln(self, r: int, g: int, b: int):
+        """设置无人机led呼吸灯色彩"""
+        led_cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=mavlink2.MAV_CMD_USER_2,  # 自定义命令用于LED呼吸灯
+            confirmation=0,
+            param1=2,  # LED mode: breathing
+            param2=r,  # Red
+            param3=g,  # Green
+            param4=b,  # Blue
+            param5=0,
+            param6=0,
+            param7=0
+        )
+        self.send_msg(led_cmd)
+        logger.info(f"Sent LED breathing command to device {self.target_channel_id}, RGB: ({r}, {g}, {b})")
+
+    def rainbow(self, r: int, g: int, b: int):
+        """设置无人机led彩虹色彩"""
+        led_cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=mavlink2.MAV_CMD_USER_3,  # 自定义命令用于LED彩虹
+            confirmation=0,
+            param1=3,  # LED mode: rainbow
+            param2=r,  # Red
+            param3=g,  # Green
+            param4=b,  # Blue
+            param5=0,
+            param6=0,
+            param7=0
+        )
+        self.send_msg(led_cmd)
+        logger.info(f"Sent LED rainbow command to device {self.target_channel_id}, RGB: ({r}, {g}, {b})")
+
+    def airplane_mode(self, mode: int):
+        """设置无人机飞行模式
+        :param mode: 1常规2巡线3跟随4单机编队 通常情况下使用模式4
+        """
+        # 映射模式到MAVLink飞行模式
+        mode_map = {
+            1: (FlyModeEnum.FLY_MODE_POSITION, 0),  # 常规模式 -> 定点模式
+            2: (FlyModeEnum.FLY_MODE_AUTO, FlyModeAutoEnum.FLY_MODE_AUTO_FOLLOW.value),  # 巡线 -> 自动跟随
+            3: (FlyModeEnum.FLY_MODE_AUTO, FlyModeAutoEnum.FLY_MODE_AUTO_FOLLOW.value),  # 跟随 -> 自动跟随
+            4: (FlyModeEnum.FLY_MODE_AUTO, FlyModeAutoEnum.FLY_MODE_AUTO_MISSION.value),  # 单机编队 -> 自动任务
+        }
+        
+        if mode in mode_map:
+            main_mode, sub_mode = mode_map[mode]
+            custom_mode = (main_mode.value << (8 * 3)) | (sub_mode << (8 * 4))
+            
+            mode_cmd = mavlink2.MAVLink_set_mode_message(
+                target_system=1,
+                base_mode=mavlink2.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                custom_mode=custom_mode
+            )
+            self.send_msg(mode_cmd)
+            logger.info(f"Sent flight mode command to device {self.target_channel_id}, mode: {mode}")
+        else:
+            logger.warning(f"Unknown flight mode: {mode}")
+
+    def stop(self):
+        """停桨"""
+        # 发送紧急停止命令
+        stop_cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=mavlink2.MAV_CMD_COMPONENT_ARM_DISARM,
+            confirmation=0,
+            param1=0,  # 0 = disarm
+            param2=21196,  # 紧急停止的魔术数字
+            param3=0,
+            param4=0,
+            param5=0,
+            param6=0,
+            param7=0
+        )
+        self.send_msg(stop_cmd)
+        logger.info(f"Sent emergency stop command to device {self.target_channel_id}")
+
+    def hover(self):
+        """悬停"""
+        # 发送悬停命令
+        hover_cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=mavlink2.MAV_CMD_OVERRIDE_GOTO,
+            confirmation=0,
+            param1=mavlink2.MAV_GOTO_DO_HOLD,  # 悬停
+            param2=mavlink2.MAV_GOTO_HOLD_AT_CURRENT_POSITION,  # 在当前位置悬停
+            param3=0,
+            param4=0,
+            param5=0,
+            param6=0,
+            param7=0
+        )
+        self.send_msg(hover_cmd)
+        logger.info(f"Sent hover command to device {self.target_channel_id}")
+
+    def flip_forward(self):
+        """前翻"""
+        flip_cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=mavlink2.MAV_CMD_USER_4,  # 自定义命令用于翻滚
+            confirmation=0,
+            param1=1,  # 前翻
+            param2=0,
+            param3=0,
+            param4=0,
+            param5=0,
+            param6=0,
+            param7=0
+        )
+        self.send_msg(flip_cmd)
+        logger.info(f"Sent flip forward command to device {self.target_channel_id}")
+
+    def flip_back(self):
+        """后翻"""
+        flip_cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=mavlink2.MAV_CMD_USER_4,  # 自定义命令用于翻滚
+            confirmation=0,
+            param1=2,  # 后翻
+            param2=0,
+            param3=0,
+            param4=0,
+            param5=0,
+            param6=0,
+            param7=0
+        )
+        self.send_msg(flip_cmd)
+        logger.info(f"Sent flip back command to device {self.target_channel_id}")
+
+    def flip_left(self):
+        """左翻"""
+        flip_cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=mavlink2.MAV_CMD_USER_4,  # 自定义命令用于翻滚
+            confirmation=0,
+            param1=3,  # 左翻
+            param2=0,
+            param3=0,
+            param4=0,
+            param5=0,
+            param6=0,
+            param7=0
+        )
+        self.send_msg(flip_cmd)
+        logger.info(f"Sent flip left command to device {self.target_channel_id}")
+
+    def flip_right(self):
+        """右翻"""
+        flip_cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=mavlink2.MAV_CMD_USER_4,  # 自定义命令用于翻滚
+            confirmation=0,
+            param1=4,  # 右翻
+            param2=0,
+            param3=0,
+            param4=0,
+            param5=0,
+            param6=0,
+            param7=0
+        )
+        self.send_msg(flip_cmd)
+        logger.info(f"Sent flip right command to device {self.target_channel_id}")

@@ -299,6 +299,17 @@ class AirplaneManagerOwl02:
         self.stop()
 
 
+# 全局管理器实例
+_global_manager = None
+
+def get_airplane_manager_owl02() -> AirplaneManagerOwl02:
+    """获取全局无人机管理器实例"""
+    global _global_manager
+    if _global_manager is None:
+        _global_manager = AirplaneManagerOwl02()
+        _global_manager.init()
+    return _global_manager
+
 # 便利函数
 def create_manager_with_serial(port: str, baudrate: int = 115200, timeout: float = 1.0) -> AirplaneManagerOwl02:
     """创建带串口的管理器"""
