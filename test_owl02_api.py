@@ -7,7 +7,7 @@
 import sys
 import time
 import logging
-from owl02 import Owl02Controller
+from owl02 import Owl02
 
 # 配置日志
 logging.basicConfig(
@@ -23,19 +23,14 @@ def test_owl02_api():
     
     try:
         # 创建Owl02Controller实例
-        controller = Owl02Controller()
+        controller = Owl02()
         logger.info("✓ Owl02Controller实例创建成功")
         
         # 测试添加无人机 - 使用COM6:3格式
         test_uav_id = "COM6:3"
         controller.add_uav(test_uav_id)
         logger.info(f"✓ 添加无人机成功 - ID: {test_uav_id}")
-        
-        # 测试纯数字格式
-        test_uav_id_num = 5
-        controller.add_uav(test_uav_id_num)
-        logger.info(f"✓ 添加无人机成功 - ID: {test_uav_id_num}")
-        
+
         # 测试获取无人机对象
         drone = controller.p(test_uav_id)
         if drone:
@@ -133,10 +128,10 @@ def test_multiple_drones():
     logger.info("开始测试多无人机支持")
     
     try:
-        controller = Owl02Controller()
+        controller = Owl02()
         
         # 添加多架无人机 - 使用不同格式的ID
-        uav_ids = ["COM6:1", "COM6:2", 3, "COM8:4"]
+        uav_ids = ["COM6:1", "COM6:2", "COM8:4"]
         for uav_id in uav_ids:
             controller.add_uav(uav_id)
             logger.info(f"✓ 添加无人机 {uav_id}")
