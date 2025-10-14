@@ -33,6 +33,4 @@ __all__ = [
     'create_manager',
     'create_manager_with_serial',
     'wrap_packet',
-    'unwrap_packet', 
-    'calculate_checksum',
 ]
