@@ -574,7 +574,7 @@ class AirplaneOwl02(IAirplane):
         # h = max(-200, min(200, h))
         logger.info(f"Going to waypoint device {self.target_channel_id}: x={x}, y={y}, h={h}")
         self._send_command_with_retry(
-            command=mavlink2.MAV_CMD_EXT_DRONE_WAYPOINT,
+            command=mavlink2.MAV_CMD_EXT_DRONE_VERSION_TARGET_APRITAG,
             param1=x,
             param2=y,
             param3=h,
