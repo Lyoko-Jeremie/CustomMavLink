@@ -10,7 +10,7 @@ import os
 # 添加当前目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from main import wrap_packet, PacketParser, HEADER1, HEADER2, TAIL
+from packet_utils import wrap_packet, PacketParser, HEADER1, HEADER2, TAIL
 
 def test_packet_wrapping():
     """测试包封装功能"""

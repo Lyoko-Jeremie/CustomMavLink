@@ -11,7 +11,7 @@ import logging
 from pymavlink import mavutil
 
 from airplane_owl02 import AirplaneOwl02
-from main import PacketParser, wrap_packet, send_mavlink_packet
+from packet_utils import PacketParser, wrap_packet, send_mavlink_packet
 
 # 配置日志
 logger = logging.getLogger(__name__)
