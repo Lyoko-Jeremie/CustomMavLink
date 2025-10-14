@@ -7,6 +7,7 @@ from commonACFly import commonACFly_py3 as mavlink2
 import threading
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from airplane_interface import (
     IAirplane, FlyModeEnum, FlyModeAutoEnum, FlyModeStableEnum,
     AirplaneState, MavLinkPacketRecord
@@ -24,14 +25,16 @@ COMMAND_ERROR = 3    # 拒绝执行指令
 
 class CommandStatus:
     """命令状态追踪"""
-    def __init__(self, command: int):
+    def __init__(self, command: int, sequence: int):
         self.command = command
+        self.sequence = sequence  # 命令序列号，用于区分同一命令的不同调用
         self.receive_count = 0  # 接收应答计数
         self.finish_count = 0   # 完成应答计数
         self.is_received = False
         self.is_finished = False
         self.is_error = False
         self.last_update = time.time()
+        self.create_time = time.time()
 
 
 class AirplaneOwl02(IAirplane):
@@ -45,13 +48,18 @@ class AirplaneOwl02(IAirplane):
         # 缓存最后接收到的每种MavLink包
         self.cached_packet_record: Dict[int, MavLinkPacketRecord] = {}
 
-        # 命令状态追踪
-        self.command_status: Dict[int, CommandStatus] = {}
+        # 命令状态追踪 - 使用 (command, sequence) 作为键
+        self.command_status: Dict[tuple, CommandStatus] = {}
         self.command_lock = threading.Lock()
+        self.command_sequence = 0  # 命令序列号生成器
 
         # 重发配置
         self.max_retries = 3  # 最大重发次数
         self.retry_timeout = 2.0  # 重发超时时间（秒）
+        self.async_mode = True  # 异步模式：不阻塞等待应答
+
+        # 线程池用于异步重发
+        self.executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="cmd_retry")
 
         # 消息解析表
         self.parse_table: Dict[int, Callable[[Any], None]] = {
@@ -79,6 +87,11 @@ class AirplaneOwl02(IAirplane):
 
         self.is_init = False
         self._lock = threading.Lock()
+
+    def __del__(self):
+        """析构函数，清理线程池"""
+        if hasattr(self, 'executor'):
+            self.executor.shutdown(wait=False)
 
     def init(self):
         """初始化无人机"""
@@ -122,72 +135,98 @@ class AirplaneOwl02(IAirplane):
         )
         return self.send_msg(request_cmd)
 
+    def _get_next_sequence(self) -> int:
+        """获取下一个命令序列号"""
+        with self.command_lock:
+            self.command_sequence += 1
+            return self.command_sequence
+
     def _send_command_with_retry(self, command: int, param1=0, param2=0, param3=0,
                                   param4=0, param5=0, param6=0, param7=0,
-                                  wait_for_finish=False, timeout=5.0):
+                                  wait_for_finish=False, timeout=5.0, async_mode=None):
         """
-        发送命令并自动重试
+        发送命令并自动重试（支持异步非阻塞模式）
         :param command: 命令ID
         :param param1-7: 命令参数
         :param wait_for_finish: 是否等待命令完成
         :param timeout: 等待超时时间
-        :return: 是否成功
+        :param async_mode: 是否异步模式（None时使用实例默认值）
+        :return: 异步模式返回Future对象，同步模式返回是否成功
         """
+        # 确定是否使用异步模式
+        use_async = async_mode if async_mode is not None else self.async_mode
+
+        # 生成命令序列号
+        sequence = self._get_next_sequence()
+
         # 创建命令状态
         with self.command_lock:
-            self.command_status[command] = CommandStatus(command)
+            key = (command, sequence)
+            self.command_status[key] = CommandStatus(command, sequence)
 
-        retry_count = 0
-        start_time = time.time()
+        # 定义实际执行重试的函数
+        def _retry_task():
+            retry_count = 0
+            start_time = time.time()
 
-        while retry_count < self.max_retries:
-            # 发送命令
-            cmd = mavlink2.MAVLink_command_long_message(
-                target_system=1,
-                target_component=1,
-                command=command,
-                confirmation=0,
-                param1=param1,
-                param2=param2,
-                param3=param3,
-                param4=param4,
-                param5=param5,
-                param6=param6,
-                param7=param7
-            )
-            self.send_msg(cmd)
-            logger.info(f"Sent command {command} to device {self.target_channel_id} (attempt {retry_count + 1}/{self.max_retries})")
+            while retry_count < self.max_retries:
+                # 发送命令
+                cmd = mavlink2.MAVLink_command_long_message(
+                    target_system=1,
+                    target_component=1,
+                    command=command,
+                    confirmation=0,
+                    param1=param1,
+                    param2=param2,
+                    param3=param3,
+                    param4=param4,
+                    param5=param5,
+                    param6=param6,
+                    param7=param7
+                )
+                self.send_msg(cmd)
+                logger.debug(f"Sent command {command} seq={sequence} to device {self.target_channel_id} (attempt {retry_count + 1}/{self.max_retries})")
 
-            # 等待应答
-            wait_start = time.time()
-            while time.time() - wait_start < self.retry_timeout:
-                with self.command_lock:
-                    status = self.command_status.get(command)
-                    if status:
-                        if status.is_error:
-                            logger.error(f"Command {command} rejected by device {self.target_channel_id}")
-                            return False
+                # 等待应答
+                wait_start = time.time()
+                while time.time() - wait_start < self.retry_timeout:
+                    with self.command_lock:
+                        status = self.command_status.get(key)
+                        if status:
+                            if status.is_error:
+                                logger.error(f"Command {command} seq={sequence} rejected by device {self.target_channel_id}")
+                                return False
 
-                        if status.is_received and not wait_for_finish:
-                            logger.info(f"Command {command} received by device {self.target_channel_id}")
-                            return True
+                            if status.is_received and not wait_for_finish:
+                                logger.info(f"Command {command} seq={sequence} received by device {self.target_channel_id}")
+                                return True
 
-                        if status.is_finished:
-                            logger.info(f"Command {command} finished by device {self.target_channel_id}")
-                            return True
+                            if status.is_finished:
+                                logger.info(f"Command {command} seq={sequence} finished by device {self.target_channel_id}")
+                                return True
 
-                # 检查总超时
-                if time.time() - start_time > timeout:
-                    logger.warning(f"Command {command} timeout after {timeout}s")
-                    return False
+                    # 检查总超时
+                    if time.time() - start_time > timeout:
+                        logger.warning(f"Command {command} seq={sequence} timeout after {timeout}s")
+                        return False
 
-                time.sleep(0.05)  # 50ms检查间隔
+                    time.sleep(0.05)  # 50ms检查间隔
 
-            retry_count += 1
-            logger.warning(f"Command {command} no response, retrying... ({retry_count}/{self.max_retries})")
+                retry_count += 1
+                if retry_count < self.max_retries:
+                    logger.warning(f"Command {command} seq={sequence} no response, retrying... ({retry_count}/{self.max_retries})")
 
-        logger.error(f"Command {command} failed after {self.max_retries} retries")
-        return False
+            logger.error(f"Command {command} seq={sequence} failed after {self.max_retries} retries")
+            return False
+
+        if use_async:
+            # 异步模式：提交到线程池，立即返回Future对象
+            future = self.executor.submit(_retry_task)
+            logger.debug(f"Command {command} seq={sequence} submitted asynchronously")
+            return future
+        else:
+            # 同步模式：阻塞等待完成
+            return _retry_task()
 
     def _cache_packet_record(self, msg_id: int, message: Any, raw_packet: bytes = b''):
         """缓存数据包记录"""
@@ -279,27 +318,37 @@ class AirplaneOwl02(IAirplane):
         result = message.result
 
         with self.command_lock:
-            if command not in self.command_status:
-                self.command_status[command] = CommandStatus(command)
+            # 更新所有匹配该命令的状态（可能有多个序列号）
+            updated = False
+            for key, status in list(self.command_status.items()):
+                if status.command == command:
+                    status.last_update = time.time()
 
-            status = self.command_status[command]
-            status.last_update = time.time()
+                    if result == RECEIVE_COMMAND:
+                        status.receive_count += 1
+                        if status.receive_count >= 1:
+                            status.is_received = True
+                        logger.debug(f"Command {command} seq={status.sequence} received ACK ({status.receive_count}/3)")
+                        updated = True
 
-            if result == RECEIVE_COMMAND:
-                status.receive_count += 1
-                if status.receive_count >= 1:  # 至少收到一次接收确认
-                    status.is_received = True
-                logger.debug(f"Command {command} received ACK ({status.receive_count}/3)")
+                    elif result == FINISH_COMMAND:
+                        status.finish_count += 1
+                        if status.finish_count >= 1:
+                            status.is_finished = True
+                        logger.info(f"Command {command} seq={status.sequence} finished ACK ({status.finish_count}/3)")
+                        updated = True
 
-            elif result == FINISH_COMMAND:
-                status.finish_count += 1
-                if status.finish_count >= 1:  # 至少收到一次完成确认
-                    status.is_finished = True
-                logger.info(f"Command {command} finished ACK ({status.finish_count}/3)")
+                    elif result == COMMAND_ERROR:
+                        status.is_error = True
+                        logger.error(f"Command {command} seq={status.sequence} error from device {self.target_channel_id}")
+                        updated = True
 
-            elif result == COMMAND_ERROR:
-                status.is_error = True
-                logger.error(f"Command {command} error from device {self.target_channel_id}")
+            # 清理超过10秒的旧命令状态
+            current_time = time.time()
+            keys_to_remove = [k for k, v in self.command_status.items()
+                            if current_time - v.create_time > 10.0]
+            for k in keys_to_remove:
+                del self.command_status[k]
 
     def _parse_gps_pos(self, message: mavlink2.MAVLink_global_position_int_message):
         """解析GPS位置"""
@@ -405,20 +454,18 @@ class AirplaneOwl02(IAirplane):
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_TAKEOFF,
             param1=height_cm,
-            wait_for_finish=True,
+            wait_for_finish=False,  # 改为非阻塞
             timeout=10.0
         )
 
     def land(self):
         """降落 - MAV_CMD_EXT_DRONE_LAND (271)"""
         logger.info(f"Landing device {self.target_channel_id}")
-        # param1: 降落模式（1:普通降落 2:锁定二维码降落）
-        # param2: 降落速度（单位cm/s，min值0，max值200）
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_LAND,
             param1=1,    # 普通降落
             param2=100,  # 降落速度100cm/s
-            wait_for_finish=True,
+            wait_for_finish=False,  # 改为非阻塞
             timeout=15.0
         )
 
@@ -427,7 +474,7 @@ class AirplaneOwl02(IAirplane):
         logger.info(f"Returning to launch for device {self.target_channel_id}")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_NAV_RETURN_TO_LAUNCH,
-            wait_for_finish=True,
+            wait_for_finish=False,  # 改为非阻塞
             timeout=20.0
         )
 
@@ -437,15 +484,12 @@ class AirplaneOwl02(IAirplane):
         """
         distance = max(0, min(1000, distance))  # 限制范围
         logger.info(f"Moving up device {self.target_channel_id} by {distance}cm")
-        # param1: 方向（1:上升 2:下降 3:前 4:后 5:左 6:右）
-        # param2: 距离（单位cm，min值0，max值1000）
-        # param3: 速度（单位cm/s，min值0，max值200）
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
             param1=1,
             param2=distance,
             param3=100,  # 默认速度100cm/s
-            wait_for_finish=True
+            wait_for_finish=False  # 改为非阻塞
         )
 
     def down(self, distance: int):
@@ -458,7 +502,8 @@ class AirplaneOwl02(IAirplane):
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
             param1=2,
             param2=distance,
-            param3=100
+            param3=100,
+            wait_for_finish=False
         )
 
     def forward(self, distance: int):
@@ -471,7 +516,8 @@ class AirplaneOwl02(IAirplane):
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
             param1=3,
             param2=distance,
-            param3=100
+            param3=100,
+            wait_for_finish=False
         )
 
     def back(self, distance: int):
@@ -484,7 +530,8 @@ class AirplaneOwl02(IAirplane):
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
             param1=4,
             param2=distance,
-            param3=100
+            param3=100,
+            wait_for_finish=False
         )
 
     def left(self, distance: int):
@@ -497,7 +544,8 @@ class AirplaneOwl02(IAirplane):
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
             param1=5,
             param2=distance,
-            param3=100
+            param3=100,
+            wait_for_finish=False
         )
 
     def right(self, distance: int):
@@ -510,7 +558,8 @@ class AirplaneOwl02(IAirplane):
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
             param1=6,
             param2=distance,
-            param3=100
+            param3=100,
+            wait_for_finish=False
         )
 
     def goto(self, x: int, y: int, h: int):
@@ -524,15 +573,12 @@ class AirplaneOwl02(IAirplane):
         y = max(-1000, min(1000, y))
         h = max(-200, min(200, h))
         logger.info(f"Going to waypoint device {self.target_channel_id}: x={x}, y={y}, h={h}")
-        # param1: x轴距离
-        # param2: y轴距离
-        # param3: z轴高度
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_WAYPOINT,
             param1=x,
             param2=y,
             param3=h,
-            wait_for_finish=True,
+            wait_for_finish=False,  # 改为非阻塞
             timeout=10.0
         )
 
@@ -547,12 +593,11 @@ class AirplaneOwl02(IAirplane):
         """
         degree = max(0, min(360, degree))
         logger.info(f"Rotating CW device {self.target_channel_id} by {degree} degrees")
-        # param1: 方向（1:逆时针 2:顺时针）
-        # param2: 角度
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_CIRCLE,
             param1=2,  # 顺时针
-            param2=degree
+            param2=degree,
+            wait_for_finish=False
         )
 
     def ccw(self, degree: int):
@@ -565,7 +610,8 @@ class AirplaneOwl02(IAirplane):
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_CIRCLE,
             param1=1,  # 逆时针
-            param2=degree
+            param2=degree,
+            wait_for_finish=False
         )
 
     def speed(self, speed: int):
@@ -675,12 +721,12 @@ class AirplaneOwl02(IAirplane):
     def hover(self):
         """悬停 - 通过停止当前移动命令实现"""
         logger.info(f"Hovering device {self.target_channel_id}")
-        # 发送零距离移动命令来停止
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
             param1=1,  # 任意方向
             param2=0,  # 零距离
-            param3=0   # 零速度
+            param3=0,  # 零速度
+            wait_for_finish=False
         )
 
     def flip_forward(self):
