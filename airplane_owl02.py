@@ -1,80 +1,23 @@
 """
 无人机对象类，参考TypeScript的AirplaneOwl02实现
 """
-import time
 from datetime import datetime
 from typing import Dict, Optional, Any, Callable
-from enum import Enum
-from dataclasses import dataclass, field
 # from pymavlink.dialects.v20 import common as mavlink2
 from commonACFly import commonACFly_py3 as mavlink2
-from pymavlink import mavutil
 import threading
 import logging
+from airplane_interface import (
+    IAirplane, FlyModeEnum, FlyModeAutoEnum, FlyModeStableEnum,
+    AirplaneState, MavLinkPacketRecord
+)
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# 飞行模式枚举
-class FlyModeEnum(Enum):
-    FLY_MODE_HOLD = 2
-    FLY_MODE_POSITION = 3
-    FLY_MODE_AUTO = 4
-    FLY_MODE_OFF_BOARD = 4
-    INVALID = 16
-
-
-class FlyModeAutoEnum(Enum):
-    FLY_MODE_AUTO_TAKEOFF = 2
-    FLY_MODE_AUTO_FOLLOW = 3
-    FLY_MODE_AUTO_MISSION = 4
-    FLY_MODE_AUTO_RTL = 5
-    FLY_MODE_AUTO_LAND = 6
-    INVALID = 16
-
-
-class FlyModeStableEnum(Enum):
-    FLY_MODE_STABLE_NORMAL = 0
-    FLY_MODE_STABLE_OBSTACLE_AVOIDANCE = 2
-    INVALID = 16
-
-
-@dataclass
-class GpsPosition:
-    lat: float = 0.0
-    lon: float = 0.0
-    alt: float = 0.0
-    relative_alt: float = 0.0
-    hdg: int = 0
-
-
-@dataclass
-class AirplaneState:
-    """无人机状态类"""
-    is_armed: bool = False
-    fly_mode: FlyModeEnum = FlyModeEnum.INVALID
-    fly_mode_auto: FlyModeAutoEnum = FlyModeAutoEnum.INVALID
-    fly_mode_stable: FlyModeStableEnum = FlyModeStableEnum.INVALID
-    is_landed: int = mavlink2.MAV_LANDED_STATE_UNDEFINED
-    flight_sw_version: Optional[int] = None
-    flight_sw_version_string: Optional[str] = None
-    board_version: Optional[int] = None
-    sn: Optional[str] = None
-    gps_position: GpsPosition = field(default_factory=GpsPosition)
-
-
-@dataclass
-class MavLinkPacketRecord:
-    """MavLink包记录"""
-    timestamp: datetime
-    msg_id: int
-    message: Any
-    raw_packet: bytes
-
-
-class AirplaneOwl02:
+class AirplaneOwl02(IAirplane):
     """无人机对象类"""
 
     def __init__(self, target_channel_id: int, manager: 'AirplaneManagerOwl02'):
@@ -313,7 +256,7 @@ class AirplaneOwl02:
         return self.cached_packet_record.get(msg_id)
 
     # 控制接口
-    async def arm(self):
+    def arm(self):
         """解锁无人机"""
         arm_cmd = mavlink2.MAVLink_command_long_message(
             target_system=1,
@@ -328,7 +271,7 @@ class AirplaneOwl02:
             param6=0,
             param7=0
         )
-        await self.send_msg(arm_cmd)
+        self.send_msg(arm_cmd)
         logger.info(f"Sent arm command to device {self.target_channel_id}")
 
     def disarm(self):
