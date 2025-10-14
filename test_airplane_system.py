@@ -114,7 +114,8 @@ def test_airplane_state_management():
         logger.info(f"Initial state: armed={initial_state.is_armed}, mode={initial_state.fly_mode}")
         
         # 模拟状态变化（通常这些会从实际的MavLink消息中解析）
-        from pymavlink.dialects.v20 import common as mavlink2
+        # from pymavlink.dialects.v20 import common as mavlink2
+        from commonACFly import commonACFly_py3 as mavlink2
         
         # 创建模拟心跳消息
         heartbeat_msg = mavlink2.MAVLink_heartbeat_message(

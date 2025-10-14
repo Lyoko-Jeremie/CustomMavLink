@@ -6,7 +6,8 @@ from datetime import datetime
 from typing import Dict, Optional, Any, Callable
 from enum import Enum
 from dataclasses import dataclass, field
-from pymavlink.dialects.v20 import common as mavlink2
+# from pymavlink.dialects.v20 import common as mavlink2
+from commonACFly import commonACFly_py3 as mavlink2
 from pymavlink import mavutil
 import threading
 import logging

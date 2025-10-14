@@ -8,7 +8,6 @@ import threading
 from typing import Dict, Optional, Callable, Any
 from datetime import datetime
 import logging
-from pymavlink.dialects.v20 import common as mavlink2
 from pymavlink import mavutil
 
 from airplane_owl02 import AirplaneOwl02

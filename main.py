@@ -2,7 +2,8 @@ import sys
 # ...existing code...
 
 import serial
-from pymavlink.dialects.v20 import common as mavlink2
+# from pymavlink.dialects.v20 import common as mavlink2
+from commonACFly import commonACFly_py3 as mavlink2
 import struct
 
 # 封装包
