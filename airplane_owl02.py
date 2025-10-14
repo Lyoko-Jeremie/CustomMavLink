@@ -445,11 +445,11 @@ class AirplaneOwl02(IAirplane):
     def takeoff(self, altitude: float):
         """
         起飞到指定高度 - MAV_CMD_EXT_DRONE_TAKEOFF (270)
-        :param altitude: 起飞高度，单位米（会转换为cm）
+        :param altitude: 起飞高度，单位cm
         """
-        height_cm = int(altitude * 100)  # 转换为cm
-        # 限制范围: min值0，max值200cm
-        height_cm = max(0, min(200, height_cm))
+        height_cm = int(altitude)
+        # 限制范围: min值0，max值1000cm
+        # height_cm = max(0, min(1000, height_cm))
         logger.info(f"Taking off device {self.target_channel_id} to {height_cm}cm")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_TAKEOFF,
@@ -482,7 +482,7 @@ class AirplaneOwl02(IAirplane):
         """上升指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
         :param distance: 距离，单位cm
         """
-        distance = max(0, min(1000, distance))  # 限制范围
+        # distance = max(0, min(1000, distance))  # 限制范围
         logger.info(f"Moving up device {self.target_channel_id} by {distance}cm")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
@@ -496,7 +496,7 @@ class AirplaneOwl02(IAirplane):
         """下降指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
         :param distance: 距离，单位cm
         """
-        distance = max(0, min(1000, distance))
+        # distance = max(0, min(1000, distance))
         logger.info(f"Moving down device {self.target_channel_id} by {distance}cm")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
@@ -510,7 +510,7 @@ class AirplaneOwl02(IAirplane):
         """前进指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
         :param distance: 距离，单位cm
         """
-        distance = max(0, min(1000, distance))
+        # distance = max(0, min(1000, distance))
         logger.info(f"Moving forward device {self.target_channel_id} by {distance}cm")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
@@ -524,7 +524,7 @@ class AirplaneOwl02(IAirplane):
         """后退指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
         :param distance: 距离，单位cm
         """
-        distance = max(0, min(1000, distance))
+        # distance = max(0, min(1000, distance))
         logger.info(f"Moving back device {self.target_channel_id} by {distance}cm")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
@@ -538,7 +538,7 @@ class AirplaneOwl02(IAirplane):
         """左移指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
         :param distance: 距离，单位cm
         """
-        distance = max(0, min(1000, distance))
+        # distance = max(0, min(1000, distance))
         logger.info(f"Moving left device {self.target_channel_id} by {distance}cm")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
@@ -552,7 +552,7 @@ class AirplaneOwl02(IAirplane):
         """右移指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
         :param distance: 距离，单位cm
         """
-        distance = max(0, min(1000, distance))
+        # distance = max(0, min(1000, distance))
         logger.info(f"Moving right device {self.target_channel_id} by {distance}cm")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
@@ -569,9 +569,9 @@ class AirplaneOwl02(IAirplane):
         :param y: y轴距离，单位cm（机头左边为y轴正方向，min值-1000，max值1000）
         :param h: 飞行高度，单位cm（min值-200，max值200，最大高度2米）
         """
-        x = max(-1000, min(1000, x))
-        y = max(-1000, min(1000, y))
-        h = max(-200, min(200, h))
+        # x = max(-1000, min(1000, x))
+        # y = max(-1000, min(1000, y))
+        # h = max(-200, min(200, h))
         logger.info(f"Going to waypoint device {self.target_channel_id}: x={x}, y={y}, h={h}")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_WAYPOINT,
@@ -591,7 +591,7 @@ class AirplaneOwl02(IAirplane):
         顺时针旋转指定角度 - MAV_CMD_EXT_DRONE_CIRCLE (273)
         :param degree: 角度（单位度，min值0，max值360）
         """
-        degree = max(0, min(360, degree))
+        # degree = max(0, min(360, degree))
         logger.info(f"Rotating CW device {self.target_channel_id} by {degree} degrees")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_CIRCLE,
@@ -605,7 +605,7 @@ class AirplaneOwl02(IAirplane):
         逆时针旋转指定角度 - MAV_CMD_EXT_DRONE_CIRCLE (273)
         :param degree: 角度（单位度，min值0，max值360）
         """
-        degree = max(0, min(360, degree))
+        # degree = max(0, min(360, degree))
         logger.info(f"Rotating CCW device {self.target_channel_id} by {degree} degrees")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_CIRCLE,
