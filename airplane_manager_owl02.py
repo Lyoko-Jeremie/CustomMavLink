@@ -81,10 +81,8 @@ class AirplaneManagerOwl02:
         def heartbeat_task():
             while not self._stop_event.is_set():
                 try:
-                    # 向所有无人机发送心跳
-                    future = asyncio.run_coroutine_threadsafe(
-                        self._send_heartbeat_to_all(), self.loop)
-                    future.result(timeout=1.0)
+                    # 向所有无人机发送心跳（同步方式）
+                    self._send_heartbeat_to_all()
                 except Exception as e:
                     logger.error(f"Error sending heartbeat: {e}")
 
@@ -107,14 +105,13 @@ class AirplaneManagerOwl02:
         self.receive_thread = threading.Thread(target=receive_task, daemon=True)
         self.receive_thread.start()
 
-    async def _send_heartbeat_to_all(self):
+    def _send_heartbeat_to_all(self):
         """向所有无人机发送心跳"""
-        tasks = []
         for airplane_id, airplane in self.airplanes.items():
-            tasks.append(airplane.send_heartbeat())
-
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                airplane.send_heartbeat()
+            except Exception as e:
+                logger.error(f"Error sending heartbeat to airplane {airplane_id}: {e}")
 
     def _process_serial_data(self):
         """处理串口数据"""
