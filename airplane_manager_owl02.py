@@ -178,6 +178,8 @@ class AirplaneManagerOwl02:
 
     def get_airplane(self, device_id: int) -> AirplaneOwl02:
         """获取或创建无人机对象"""
+        if device_id < 0 or device_id >= 16:
+            raise ValueError("Device ID must be between 0 and 15")
         if device_id not in self.airplanes:
             # 创建新的无人机对象
             airplane = AirplaneOwl02(device_id, self)
