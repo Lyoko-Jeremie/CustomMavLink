@@ -22,6 +22,9 @@ def wrap_packet(device_id: int, data: bytes) -> bytes:
     封装数据包
     格式: 0xAA 0xBB ID 数据长度 PAYLOAD 校验和 0xCC
     """
+
+    print('wrap_packet data', data)
+
     if not (0 <= device_id <= 15):
         raise ValueError("Device ID must be between 0 and 15")
 
@@ -38,6 +41,8 @@ def wrap_packet(device_id: int, data: bytes) -> bytes:
 
     # 完整数据包
     packet = packet_body + struct.pack('BB', checksum, TAIL)
+
+    print('wrap_packet packet', packet)
 
     return packet
 
@@ -164,6 +169,7 @@ class PacketParser:
 def send_mavlink_packet(serial_port, device_id: int, mav_msg):
     """发送MavLink数据包"""
     # 创建MavLink对象来序列化消息
+    print('send_mavlink_packet device_id', device_id, mav_msg)
     mav = mavlink2.MAVLink(None)
     mav_bytes = mav_msg.pack(mav)
     wrapped = wrap_packet(device_id, mav_bytes)
