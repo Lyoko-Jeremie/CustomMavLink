@@ -371,6 +371,8 @@ class AirplaneOwl02(IAirplane):
         # 缓存数据包
         self._cache_packet_record(msg_id, message, raw_packet)
 
+        print('Parsed message ID:', msg_id, message)
+
         # 查找并调用对应的解析函数
         parse_func = self.parse_table.get(msg_id)
         if parse_func:
@@ -707,6 +709,28 @@ class AirplaneOwl02(IAirplane):
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_SET_MODE,
             param1=mode
+        )
+
+    def set_color_detect_mode(self, l_min: int, l_max: int, a_min: int, a_max: int, b_min: int, b_max: int):
+        """
+        设置色块检测模式 - MAV_CMD_EXT_DRONE_VERSION_DETECT_MODE_SET (278)
+        :param l_min: 色块L通道的最低检测值
+        :param l_max: 色块L通道的最高检测值
+        :param a_min: 色块A通道的最低检测值
+        :param a_max: 色块A通道的最高检测值
+        :param b_min: 色块B通道的最低检测值
+        :param b_max: 色块B通道的最高检测值
+        """
+        logger.info(f"Setting color detect mode for device {self.target_channel_id}: "
+                   f"L({l_min}-{l_max}), A({a_min}-{a_max}), B({b_min}-{b_max})")
+        self._send_command_with_retry(
+            command=mavlink2.MAV_CMD_EXT_DRONE_VERSION_DETECT_MODE_SET,
+            param1=l_min,
+            param2=l_max,
+            param3=a_min,
+            param4=a_max,
+            param5=b_min,
+            param6=b_max
         )
 
     def stop(self):

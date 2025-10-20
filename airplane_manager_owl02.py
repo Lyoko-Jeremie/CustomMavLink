@@ -116,18 +116,24 @@ class AirplaneManagerOwl02:
     def _process_serial_data(self):
         """处理串口数据"""
         if not self.serial_port or not self.serial_port.is_open:
+            print('Serial port not open')
             return
 
         # 读取可用数据
         available_data = self.serial_port.read(self.serial_port.in_waiting or 1)
         if not available_data:
+            print('available_data is empty')
             return
+
+        # print('_process_serial_data', available_data)
 
         # 添加到解析器
         self.packet_parser.add_data(available_data)
 
         # 解析数据包
         packets = self.packet_parser.parse_packets()
+
+        print('packets', packets)
 
         for packet_info in packets:
             device_id = packet_info['device_id']
@@ -178,7 +184,7 @@ class AirplaneManagerOwl02:
 
     def get_airplane(self, device_id: int) -> AirplaneOwl02:
         """获取或创建无人机对象"""
-        if device_id < 0 or device_id >= 16:
+        if device_id < 0 or device_id > 15:
             raise ValueError("Device ID must be between 0 and 15")
         if device_id not in self.airplanes:
             # 创建新的无人机对象

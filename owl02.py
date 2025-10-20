@@ -28,7 +28,7 @@ class Owl02:
 
     def add_uav(self, uav_id: str) -> None:
         """添加（注册）无人机
-        :param uav_id: 无人机ID，格式必须为 "COMx:id" (如 "COM6:3")，其中id在1-16之间
+        :param uav_id: 无人机ID，格式必须为 "COMx:id" (如 "COM6:3")，其中id在0-15之间
         """
         # 将uav_id转换为设备ID
         device_id = self._convert_to_device_id(uav_id)
@@ -37,8 +37,8 @@ class Owl02:
 
     def _convert_to_device_id(self, uav_id: str) -> int:
         """将无人机ID转换为内部设备ID
-        :param uav_id: 无人机ID，格式必须为 "COMx:id"，其中id在1-16之间
-        :return: 设备ID (1-16之间的整数)
+        :param uav_id: 无人机ID，格式必须为 "COMx:id"，其中id在0-15之间
+        :return: 设备ID (0-15之间的整数)
         """
         try:
             # 检查格式是否为 "COMx:id"
@@ -57,13 +57,13 @@ class Owl02:
             if 1 <= device_id <= 16:
                 return device_id
             else:
-                raise ValueError(f"无人机ID必须在1-16之间，当前值: {device_id}")
+                raise ValueError(f"无人机ID必须在0-15之间，当前值: {device_id}")
 
         except ValueError as e:
-            if "无人机ID必须在1-16之间" in str(e) or "端口部分必须以COM开头" in str(e) or "无人机ID格式错误" in str(e):
+            if "无人机ID必须在0-15之间" in str(e) or "端口部分必须以COM开头" in str(e) or "无人机ID格式错误" in str(e):
                 raise e
             else:
-                raise ValueError(f"无法解析无人机ID: {uav_id}，必须为 'COMx:id' 格式，其中x为端口号，id为1-16之间的数字")
+                raise ValueError(f"无法解析无人机ID: {uav_id}，必须为 'COMx:id' 格式，其中x为端口号，id为0-15之间的数字")
 
     def p(self, uav_id: str) -> AirplaneOwl02:
         """获取无人机对象

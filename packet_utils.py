@@ -7,9 +7,9 @@ from commonACFly import commonACFly_py3 as mavlink2
 
 # 封装包
 # 帧头1	帧头2	ID	                    数据长度	    PLAYLOAD(data)	    uint8_t校验和	帧尾
-# 0xAA	0xBB	1-16（用于判断设备号） 	max值（58）	max值（58个字节）		checksum        0xCC
+# 0xAA	0xBB	0-15（用于判断设备号） 	max值（58）	max值（58个字节）		checksum        0xCC
 #
-# 备注：id为1-16个天空端的设备ID
+# 备注：id为0-15个天空端的设备ID
 #       playload为天空端设备回传的信息或者地面站发送的cmd，地面站与天空端之间采用mavlink数据传输。先将基本数据打包成mavlink，打包后的mavlink数据放到playload
 HEADER1 = 0xAA
 HEADER2 = 0xBB
@@ -22,8 +22,8 @@ def wrap_packet(device_id: int, data: bytes) -> bytes:
     封装数据包
     格式: 0xAA 0xBB ID 数据长度 PAYLOAD 校验和 0xCC
     """
-    if not (1 <= device_id <= 16):
-        raise ValueError("Device ID must be between 1 and 16")
+    if not (0 <= device_id <= 15):
+        raise ValueError("Device ID must be between 0 and 15")
 
     if len(data) > MAX_PAYLOAD_SIZE:
         raise ValueError(f"Data size {len(data)} exceeds maximum {MAX_PAYLOAD_SIZE}")
@@ -44,9 +44,9 @@ def wrap_packet(device_id: int, data: bytes) -> bytes:
 
 # 解析包
 # 帧头1	帧头2	ID	                    数据长度	    PLAYLOAD(data)	    uint8_t校验和	帧尾
-# 0xAA	0xBB	1-16（用于判断设备号） 	max值（58）	max值（58个字节）		checksum        0xCC
+# 0xAA	0xBB	0-15（用于判断设备号） 	max值（58）	max值（58个字节）		checksum        0xCC
 #
-# 备注：id为1-16个天空端的设备ID
+# 备注：id为0-15个天空端的设备ID
 #       playload为天空端设备回传的信息或者地面站发送的cmd，地面站与天空端之间采用mavlink数据传输。先将基本数据打包成mavlink，打包后的mavlink数据放到playload
 class PacketParser:
     """数据包解析器，支持缓存和包切割"""
@@ -62,6 +62,8 @@ class PacketParser:
         """从缓存中解析出完整的数据包"""
         packets = []
 
+        # print('parse_packets buffer', self.buffer)
+
         while len(self.buffer) >= 6:  # 最小包长度：头(2) + ID(1) + 长度(1) + 校验(1) + 尾(1)
             # 查找包头
             header_pos = -1
@@ -71,9 +73,11 @@ class PacketParser:
                     break
 
             if header_pos == -1:
-                # 没找到包头，清空缓存或保留最后一个字节（可能是包头的一部分）
-                if len(self.buffer) > 0:
+                # 没找到包头，保留最后一个字节（如果是0xAA可能是包头的一部分）
+                if len(self.buffer) > 0 and self.buffer[-1] == HEADER1:
                     self.buffer = self.buffer[-1:]
+                else:
+                    self.buffer.clear()
                 break
 
             # 移除包头前的无效数据
@@ -103,11 +107,12 @@ class PacketParser:
                 parsed_packet = self._parse_single_packet(packet_data)
                 if parsed_packet:
                     packets.append(parsed_packet)
+                # 从缓存中移除已处理的包
+                self.buffer = self.buffer[total_length:]
             except ValueError as e:
                 print(f"Package parsing error: {e}")
-
-            # 从缓存中移除已处理的包
-            self.buffer = self.buffer[total_length:]
+                # 解析失败，跳过当前包头，继续查找下一个包头
+                self.buffer = self.buffer[2:]
 
         return packets
 
@@ -124,7 +129,7 @@ class PacketParser:
         device_id = packet[2]
         data_length = packet[3]
 
-        if not (1 <= device_id <= 16):
+        if not (0 <= device_id <= 15):
             raise ValueError(f"Invalid device ID: {device_id}")
 
         if data_length > MAX_PAYLOAD_SIZE:
@@ -218,4 +223,3 @@ def receive_mavlink_packet(serial_port, packet_parser=None):
             }
 
     return None
-

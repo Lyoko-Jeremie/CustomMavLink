@@ -27,7 +27,7 @@ class DroneControlGUI:
 
         self.manager = None
         self.drone = None
-        self.drone_id = 1
+        self.drone_id = 2
 
         self.setup_ui()
 
@@ -65,7 +65,7 @@ class DroneControlGUI:
 
         tk.Label(com_frame, text="COM口:").pack(side="left", padx=5)
         self.com_port_entry = tk.Entry(com_frame, width=10)
-        self.com_port_entry.insert(0, "COM3")
+        self.com_port_entry.insert(0, "COM7")
         self.com_port_entry.pack(side="left", padx=5)
 
         tk.Label(com_frame, text="波特率:").pack(side="left", padx=5)
@@ -78,7 +78,7 @@ class DroneControlGUI:
         id_frame.pack(fill="x", pady=5)
         tk.Label(id_frame, text="无人机ID:").pack(side="left", padx=5)
         self.id_entry = tk.Entry(id_frame, width=10)
-        self.id_entry.insert(0, "1")
+        self.id_entry.insert(0, "2")
         self.id_entry.pack(side="left", padx=5)
 
         # 初始化按钮
@@ -231,6 +231,197 @@ class DroneControlGUI:
         tk.Button(
             goto_frame, text="飞往目标点 (Goto)", command=self.goto,
             bg="#673AB7", fg="white", font=("Arial", 10, "bold"),
+            width=20, height=2
+        ).pack(pady=5)
+
+        # 灯光控制区域
+        light_frame = ttk.LabelFrame(right_panel, text="灯光控制", padding=10)
+        light_frame.pack(fill="x", pady=5)
+
+        # RGB输入
+        rgb_input_frame = tk.Frame(light_frame)
+        rgb_input_frame.pack(fill="x", pady=5)
+
+        tk.Label(rgb_input_frame, text="R:").pack(side="left", padx=2)
+        self.light_r = tk.Entry(rgb_input_frame, width=6)
+        self.light_r.insert(0, "255")
+        self.light_r.pack(side="left", padx=2)
+
+        tk.Label(rgb_input_frame, text="G:").pack(side="left", padx=2)
+        self.light_g = tk.Entry(rgb_input_frame, width=6)
+        self.light_g.insert(0, "0")
+        self.light_g.pack(side="left", padx=2)
+
+        tk.Label(rgb_input_frame, text="B:").pack(side="left", padx=2)
+        self.light_b = tk.Entry(rgb_input_frame, width=6)
+        self.light_b.insert(0, "0")
+        self.light_b.pack(side="left", padx=2)
+
+        # 颜色预览
+        self.color_preview = tk.Label(
+            rgb_input_frame, text="  ", bg="#FF0000", width=3, relief="solid", borderwidth=1
+        )
+        self.color_preview.pack(side="left", padx=5)
+
+        # 绑定颜色输入框的事件，实时更新预览
+        self.light_r.bind("<KeyRelease>", self.update_color_preview)
+        self.light_g.bind("<KeyRelease>", self.update_color_preview)
+        self.light_b.bind("<KeyRelease>", self.update_color_preview)
+
+        # 灯光模式按钮
+        light_mode_frame = tk.Frame(light_frame)
+        light_mode_frame.pack(fill="x", pady=5)
+
+        tk.Button(
+            light_mode_frame, text="常亮 (LED)", command=self.set_led,
+            bg="#FFC107", fg="black", font=("Arial", 9, "bold"),
+            width=12, height=2
+        ).pack(side="left", padx=3, expand=True)
+
+        tk.Button(
+            light_mode_frame, text="呼吸灯 (Breathe)", command=self.set_breathe,
+            bg="#00BCD4", fg="white", font=("Arial", 9, "bold"),
+            width=12, height=2
+        ).pack(side="left", padx=3, expand=True)
+
+        tk.Button(
+            light_mode_frame, text="彩虹灯 (Rainbow)", command=self.set_rainbow,
+            bg="#E91E63", fg="white", font=("Arial", 9, "bold"),
+            width=12, height=2
+        ).pack(side="left", padx=3, expand=True)
+
+        # 预设颜色按钮
+        preset_frame = tk.Frame(light_frame)
+        preset_frame.pack(fill="x", pady=5)
+
+        preset_colors = [
+            ("红", "#FF0000", 255, 0, 0),
+            ("绿", "#00FF00", 0, 255, 0),
+            ("蓝", "#0000FF", 0, 0, 255),
+            ("黄", "#FFFF00", 255, 255, 0),
+            ("紫", "#FF00FF", 255, 0, 255),
+            ("青", "#00FFFF", 0, 255, 255),
+            ("白", "#FFFFFF", 255, 255, 255),
+            ("关", "#000000", 0, 0, 0),
+        ]
+
+        for name, color, r, g, b in preset_colors:
+            btn = tk.Button(
+                preset_frame, text=name, bg=color,
+                fg="white" if sum([r, g, b]) < 400 else "black",
+                font=("Arial", 8, "bold"),
+                width=4, height=1,
+                command=lambda r=r, g=g, b=b: self.set_preset_color(r, g, b)
+            )
+            btn.pack(side="left", padx=2)
+
+        # 飞行模式设置区域
+        mode_frame = ttk.LabelFrame(right_panel, text="飞行模式设置", padding=10)
+        mode_frame.pack(fill="x", pady=5)
+
+        mode_desc_label = tk.Label(
+            mode_frame,
+            text="飞行模式：1-常规模式  2-巡线模式  3-跟随模式",
+            font=("Arial", 8),
+            fg="#666666"
+        )
+        mode_desc_label.pack(pady=2)
+
+        mode_buttons_frame = tk.Frame(mode_frame)
+        mode_buttons_frame.pack(fill="x", pady=5)
+
+        tk.Button(
+            mode_buttons_frame, text="常规模式", command=lambda: self.set_flight_mode(1),
+            bg="#4CAF50", fg="white", font=("Arial", 9, "bold"),
+            width=10, height=2
+        ).pack(side="left", padx=5, expand=True)
+
+        tk.Button(
+            mode_buttons_frame, text="巡线模式", command=lambda: self.set_flight_mode(2),
+            bg="#FF9800", fg="white", font=("Arial", 9, "bold"),
+            width=10, height=2
+        ).pack(side="left", padx=5, expand=True)
+
+        tk.Button(
+            mode_buttons_frame, text="跟随模式", command=lambda: self.set_flight_mode(3),
+            bg="#2196F3", fg="white", font=("Arial", 9, "bold"),
+            width=10, height=2
+        ).pack(side="left", padx=5, expand=True)
+
+        # 色块检测设置区域
+        detect_frame = ttk.LabelFrame(right_panel, text="色块检测设置 (LAB颜色空间)", padding=10)
+        detect_frame.pack(fill="x", pady=5)
+
+        detect_desc_label = tk.Label(
+            detect_frame,
+            text="设置LAB颜色空间的检测范围",
+            font=("Arial", 8),
+            fg="#666666"
+        )
+        detect_desc_label.pack(pady=2)
+
+        # L通道
+        l_frame = tk.Frame(detect_frame)
+        l_frame.pack(fill="x", pady=2)
+        tk.Label(l_frame, text="L通道:", width=8).pack(side="left", padx=2)
+        tk.Label(l_frame, text="最小:").pack(side="left", padx=2)
+        self.detect_l_min = tk.Entry(l_frame, width=6)
+        self.detect_l_min.insert(0, "0")
+        self.detect_l_min.pack(side="left", padx=2)
+        tk.Label(l_frame, text="最大:").pack(side="left", padx=2)
+        self.detect_l_max = tk.Entry(l_frame, width=6)
+        self.detect_l_max.insert(0, "100")
+        self.detect_l_max.pack(side="left", padx=2)
+
+        # A通道
+        a_frame = tk.Frame(detect_frame)
+        a_frame.pack(fill="x", pady=2)
+        tk.Label(a_frame, text="A通道:", width=8).pack(side="left", padx=2)
+        tk.Label(a_frame, text="最小:").pack(side="left", padx=2)
+        self.detect_a_min = tk.Entry(a_frame, width=6)
+        self.detect_a_min.insert(0, "-128")
+        self.detect_a_min.pack(side="left", padx=2)
+        tk.Label(a_frame, text="最大:").pack(side="left", padx=2)
+        self.detect_a_max = tk.Entry(a_frame, width=6)
+        self.detect_a_max.insert(0, "127")
+        self.detect_a_max.pack(side="left", padx=2)
+
+        # B通道
+        b_frame = tk.Frame(detect_frame)
+        b_frame.pack(fill="x", pady=2)
+        tk.Label(b_frame, text="B通道:", width=8).pack(side="left", padx=2)
+        tk.Label(b_frame, text="最小:").pack(side="left", padx=2)
+        self.detect_b_min = tk.Entry(b_frame, width=6)
+        self.detect_b_min.insert(0, "-128")
+        self.detect_b_min.pack(side="left", padx=2)
+        tk.Label(b_frame, text="最大:").pack(side="left", padx=2)
+        self.detect_b_max = tk.Entry(b_frame, width=6)
+        self.detect_b_max.insert(0, "127")
+        self.detect_b_max.pack(side="left", padx=2)
+
+        # 预设颜色检测按钮
+        detect_preset_frame = tk.Frame(detect_frame)
+        detect_preset_frame.pack(fill="x", pady=5)
+
+        detect_presets = [
+            ("红色", 0, 100, 20, 127, -128, 127),
+            ("绿色", 0, 100, -128, -20, -128, 127),
+            ("蓝色", 0, 100, -128, 127, -128, -20),
+        ]
+
+        for name, l_min, l_max, a_min, a_max, b_min, b_max in detect_presets:
+            btn = tk.Button(
+                detect_preset_frame, text=name,
+                font=("Arial", 8),
+                width=8, height=1,
+                command=lambda lmin=l_min, lmax=l_max, amin=a_min, amax=a_max, bmin=b_min, bmax=b_max:
+                    self.set_detect_preset(lmin, lmax, amin, amax, bmin, bmax)
+            )
+            btn.pack(side="left", padx=3)
+
+        tk.Button(
+            detect_frame, text="应用色块检测设置", command=self.apply_color_detect,
+            bg="#9C27B0", fg="white", font=("Arial", 9, "bold"),
             width=20, height=2
         ).pack(pady=5)
 
@@ -534,6 +725,165 @@ class DroneControlGUI:
             self.log_message(f"✓ Goto命令已发送 (X:{x}, Y:{y}, Z:{z})")
 
         self.run_in_thread(_goto)
+
+    def update_color_preview(self, event=None):
+        """更新颜色预览框"""
+        try:
+            r = int(self.light_r.get())
+            g = int(self.light_g.get())
+            b = int(self.light_b.get())
+            # 限制范围0-255
+            r = max(0, min(255, r))
+            g = max(0, min(255, g))
+            b = max(0, min(255, b))
+            color = f"#{r:02X}{g:02X}{b:02X}"
+            self.color_preview.config(bg=color)
+        except ValueError:
+            pass  # 忽略无效输入
+
+    def set_led(self):
+        """设置常亮模式"""
+        if not self.check_drone():
+            return
+
+        try:
+            r = int(self.light_r.get())
+            g = int(self.light_g.get())
+            b = int(self.light_b.get())
+        except ValueError:
+            self.log_message("无效的RGB值", "ERROR")
+            messagebox.showerror("错误", "请输入有效的RGB值(0-255)")
+            return
+
+        def _set_led():
+            self.log_message(f"设置常亮模式 RGB({r}, {g}, {b})...")
+            self.drone.led(r, g, b)
+            self.log_message(f"✓ 常亮模式命令已发送")
+
+        self.run_in_thread(_set_led)
+
+    def set_breathe(self):
+        """设置呼吸灯模式"""
+        if not self.check_drone():
+            return
+
+        try:
+            r = int(self.light_r.get())
+            g = int(self.light_g.get())
+            b = int(self.light_b.get())
+        except ValueError:
+            self.log_message("无效的RGB值", "ERROR")
+            messagebox.showerror("错误", "请输入有效的RGB值(0-255)")
+            return
+
+        def _set_breathe():
+            self.log_message(f"设置呼吸灯模式 RGB({r}, {g}, {b})...")
+            self.drone.bln(r, g, b)
+            self.log_message(f"✓ 呼吸灯模式命令已发送")
+
+        self.run_in_thread(_set_breathe)
+
+    def set_rainbow(self):
+        """设置彩虹灯模式"""
+        if not self.check_drone():
+            return
+
+        try:
+            r = int(self.light_r.get())
+            g = int(self.light_g.get())
+            b = int(self.light_b.get())
+        except ValueError:
+            self.log_message("无效的RGB值", "ERROR")
+            messagebox.showerror("错误", "请输入有效的RGB值(0-255)")
+            return
+
+        def _set_rainbow():
+            self.log_message(f"设置彩虹灯模式 RGB({r}, {g}, {b})...")
+            self.drone.rainbow(r, g, b)
+            self.log_message(f"✓ 彩虹灯模式命令已发送")
+
+        self.run_in_thread(_set_rainbow)
+
+    def set_preset_color(self, r, g, b):
+        """设置预设颜色"""
+        # 更新输入框的值
+        self.light_r.delete(0, tk.END)
+        self.light_r.insert(0, str(r))
+        self.light_g.delete(0, tk.END)
+        self.light_g.insert(0, str(g))
+        self.light_b.delete(0, tk.END)
+        self.light_b.insert(0, str(b))
+
+        # 更新颜色预览
+        self.update_color_preview()
+
+        # 如果无人机已连接，直接设置颜色
+        if not self.check_drone():
+            return
+
+        def _set_color():
+            self.log_message(f"设置预设颜色 RGB({r}, {g}, {b})...")
+            self.drone.led(r, g, b)
+            self.log_message(f"✓ 预设颜色命令已发送")
+
+        self.run_in_thread(_set_color)
+
+    def set_flight_mode(self, mode):
+        """设置飞行模式"""
+        if not self.check_drone():
+            return
+
+        mode_names = {1: "常规模式", 2: "巡线模式", 3: "跟随模式"}
+        mode_name = mode_names.get(mode, "未知模式")
+
+        def _set_mode():
+            self.log_message(f"设置飞行模式为 {mode_name}...")
+            self.drone.airplane_mode(mode)
+            self.log_message(f"✓ 飞行模式命令已发送 ({mode_name})")
+
+        self.run_in_thread(_set_mode)
+
+    def set_detect_preset(self, l_min, l_max, a_min, a_max, b_min, b_max):
+        """设置色块检测预设"""
+        # 更新LAB值的输入框
+        self.detect_l_min.delete(0, tk.END)
+        self.detect_l_min.insert(0, str(l_min))
+        self.detect_l_max.delete(0, tk.END)
+        self.detect_l_max.insert(0, str(l_max))
+        self.detect_a_min.delete(0, tk.END)
+        self.detect_a_min.insert(0, str(a_min))
+        self.detect_a_max.delete(0, tk.END)
+        self.detect_a_max.insert(0, str(a_max))
+        self.detect_b_min.delete(0, tk.END)
+        self.detect_b_min.insert(0, str(b_min))
+        self.detect_b_max.delete(0, tk.END)
+        self.detect_b_max.insert(0, str(b_max))
+
+        self.log_message(f"预设色块检测参数已填充")
+
+    def apply_color_detect(self):
+        """应用色块检测设置"""
+        if not self.check_drone():
+            return
+
+        try:
+            l_min = int(self.detect_l_min.get())
+            l_max = int(self.detect_l_max.get())
+            a_min = int(self.detect_a_min.get())
+            a_max = int(self.detect_a_max.get())
+            b_min = int(self.detect_b_min.get())
+            b_max = int(self.detect_b_max.get())
+        except ValueError:
+            self.log_message("无效的LAB值", "ERROR")
+            messagebox.showerror("错误", "请输入有效的LAB值")
+            return
+
+        def _apply():
+            self.log_message(f"应用色块检测设置 L({l_min}-{l_max}) A({a_min}-{a_max}) B({b_min}-{b_max})...")
+            self.drone.set_color_detect_mode(l_min, l_max, a_min, a_max, b_min, b_max)
+            self.log_message("✓ 色块检测设置已应用")
+
+        self.run_in_thread(_apply)
 
     def on_closing(self):
         """关闭窗口时的处理"""
