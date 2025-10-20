@@ -133,7 +133,8 @@ class AirplaneManagerOwl02:
         # 解析数据包
         packets = self.packet_parser.parse_packets()
 
-        print('packets', packets)
+        if len(packets) > 0:
+            print('packets', packets)
 
         for packet_info in packets:
             device_id = packet_info['device_id']
