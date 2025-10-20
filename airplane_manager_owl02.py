@@ -30,6 +30,7 @@ class AirplaneManagerOwl02:
         # 心跳定时器相关
         self.heartbeat_timer = None
         self.heartbeat_interval = 1.0  # 1Hz
+        self.heartbeat_enabled = True  # 心跳是否启用
 
         # 数据接收线程
         self.receive_thread = None
@@ -107,11 +108,28 @@ class AirplaneManagerOwl02:
 
     def _send_heartbeat_to_all(self):
         """向所有无人机发送心跳"""
+        if not self.heartbeat_enabled:
+            return  # 如果心跳未启用，直接返回
+
         for airplane_id, airplane in self.airplanes.items():
             try:
                 airplane.send_heartbeat()
             except Exception as e:
                 logger.error(f"Error sending heartbeat to airplane {airplane_id}: {e}")
+
+    def enable_heartbeat(self):
+        """启用心跳包发送"""
+        self.heartbeat_enabled = True
+        logger.info("Heartbeat enabled")
+
+    def disable_heartbeat(self):
+        """禁用心跳包发送"""
+        self.heartbeat_enabled = False
+        logger.info("Heartbeat disabled")
+
+    def is_heartbeat_enabled(self) -> bool:
+        """检查心跳是否启用"""
+        return self.heartbeat_enabled
 
     def _process_serial_data(self):
         """处理串口数据"""

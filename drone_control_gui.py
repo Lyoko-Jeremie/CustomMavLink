@@ -23,7 +23,7 @@ class DroneControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("无人机控制调试界面")
-        self.root.geometry("1400x820")  # 增加窗口宽度以适应三栏布局
+        self.root.geometry("1400x850")  # 增加窗口宽度以适应三栏布局
 
         self.manager = None
         self.drone = None
@@ -109,6 +109,31 @@ class DroneControlGUI:
             height=2
         )
         btn_get_drone.pack(pady=5)
+
+        # 心跳包控制区域
+        heartbeat_frame = tk.Frame(init_frame)
+        heartbeat_frame.pack(fill="x", pady=5)
+
+        tk.Label(heartbeat_frame, text="心跳包:").pack(side="left", padx=5)
+
+        self.heartbeat_var = tk.BooleanVar(value=True)  # 默认启用
+        self.heartbeat_checkbox = tk.Checkbutton(
+            heartbeat_frame,
+            text="启用心跳包发送",
+            variable=self.heartbeat_var,
+            command=self.toggle_heartbeat,
+            font=("Arial", 10)
+        )
+        self.heartbeat_checkbox.pack(side="left", padx=5)
+
+        # 心跳状态指示器
+        self.heartbeat_indicator = tk.Label(
+            heartbeat_frame,
+            text="●",
+            fg="#4CAF50",
+            font=("Arial", 16)
+        )
+        self.heartbeat_indicator.pack(side="left", padx=5)
 
         # 基本控制区域
         basic_frame = ttk.LabelFrame(left_panel, text="基本控制", padding=10)
@@ -889,6 +914,23 @@ class DroneControlGUI:
             self.log_message("✓ 色块检测设置已应用")
 
         self.run_in_thread(_apply)
+
+    def toggle_heartbeat(self):
+        """切换心跳包发送"""
+        if not self.manager:
+            self.log_message("请先初始化管理器", "WARNING")
+            self.heartbeat_var.set(True)  # 重置为默认值
+            return
+
+        enabled = self.heartbeat_var.get()
+        if enabled:
+            self.manager.enable_heartbeat()
+            self.log_message("✓ 已启用心跳包发送")
+            self.heartbeat_indicator.config(fg="#4CAF50")  # 绿色
+        else:
+            self.manager.disable_heartbeat()
+            self.log_message("✓ 已禁用心跳包发送")
+            self.heartbeat_indicator.config(fg="#FF0000")  # 红色
 
     def on_closing(self):
         """关闭窗口时的处理"""

@@ -23,7 +23,7 @@ def wrap_packet(device_id: int, data: bytes) -> bytes:
     格式: 0xAA 0xBB ID 数据长度 PAYLOAD 校验和 0xCC
     """
 
-    print('wrap_packet data', data)
+    # print('wrap_packet data', data)
 
     if not (0 <= device_id <= 15):
         raise ValueError("Device ID must be between 0 and 15")
@@ -42,7 +42,7 @@ def wrap_packet(device_id: int, data: bytes) -> bytes:
     # 完整数据包
     packet = packet_body + struct.pack('BB', checksum, TAIL)
 
-    print('wrap_packet packet', packet)
+    # print('wrap_packet packet', packet)
 
     return packet
 
