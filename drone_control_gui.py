@@ -23,7 +23,7 @@ class DroneControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("无人机控制调试界面")
-        self.root.geometry("900x820")
+        self.root.geometry("1400x820")  # 增加窗口宽度以适应三栏布局
 
         self.manager = None
         self.drone = None
@@ -42,19 +42,23 @@ class DroneControlGUI:
         )
         title_label.pack()
 
-        # 创建主容器 - 左右布局
+        # 创建主容器 - 三栏布局
         main_container = tk.Frame(self.root)
         main_container.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # 左侧面板
-        left_panel = tk.Frame(main_container)
+        # 左侧面板 - 基本控制
+        left_panel = tk.Frame(main_container, width=400)
         left_panel.pack(side="left", fill="both", expand=True, padx=(0, 5))
 
-        # 右侧面板
-        right_panel = tk.Frame(main_container)
+        # 中间面板 - 高级功能
+        middle_panel = tk.Frame(main_container, width=400)
+        middle_panel.pack(side="left", fill="both", expand=True, padx=5)
+
+        # 右侧面板 - 日志输出
+        right_panel = tk.Frame(main_container, width=400)
         right_panel.pack(side="right", fill="both", expand=True, padx=(5, 0))
 
-        # ==================== 左侧内容 ====================
+        # ==================== 左侧内容 - 基本控制 ====================
         # 初始化区域
         init_frame = ttk.LabelFrame(left_panel, text="初始化", padding=10)
         init_frame.pack(fill="x", pady=5)
@@ -205,9 +209,9 @@ class DroneControlGUI:
             width=12, height=2
         ).grid(row=4, column=1, padx=5, pady=5)
 
-        # ==================== 右侧内容 ====================
+        # ==================== 中间内容 - 高级功能 ====================
         # Goto控制区域
-        goto_frame = ttk.LabelFrame(right_panel, text="定点飞行", padding=10)
+        goto_frame = ttk.LabelFrame(middle_panel, text="定点飞行", padding=10)
         goto_frame.pack(fill="x", pady=5)
 
         coords_frame = tk.Frame(goto_frame)
@@ -235,7 +239,7 @@ class DroneControlGUI:
         ).pack(pady=5)
 
         # 灯光控制区域
-        light_frame = ttk.LabelFrame(right_panel, text="灯光控制", padding=10)
+        light_frame = ttk.LabelFrame(middle_panel, text="灯光控制", padding=10)
         light_frame.pack(fill="x", pady=5)
 
         # RGB输入
@@ -316,7 +320,7 @@ class DroneControlGUI:
             btn.pack(side="left", padx=2)
 
         # 飞行模式设置区域
-        mode_frame = ttk.LabelFrame(right_panel, text="飞行模式设置", padding=10)
+        mode_frame = ttk.LabelFrame(middle_panel, text="飞行模式设置", padding=10)
         mode_frame.pack(fill="x", pady=5)
 
         mode_desc_label = tk.Label(
@@ -349,7 +353,7 @@ class DroneControlGUI:
         ).pack(side="left", padx=5, expand=True)
 
         # 色块检测设置区域
-        detect_frame = ttk.LabelFrame(right_panel, text="色块检测设置 (LAB颜色空间)", padding=10)
+        detect_frame = ttk.LabelFrame(middle_panel, text="色块检测设置 (LAB颜色空间)", padding=10)
         detect_frame.pack(fill="x", pady=5)
 
         detect_desc_label = tk.Label(
@@ -425,6 +429,7 @@ class DroneControlGUI:
             width=20, height=2
         ).pack(pady=5)
 
+        # ==================== 右侧内容 - 日志输出 ====================
         # 日志输出区域
         log_frame = ttk.LabelFrame(right_panel, text="日志输出", padding=10)
         log_frame.pack(fill="both", expand=True, pady=5)
