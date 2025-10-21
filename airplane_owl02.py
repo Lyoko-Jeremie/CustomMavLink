@@ -33,6 +33,7 @@ class CommandStatus:
         self.is_received = False
         self.is_finished = False
         self.is_error = False
+        self.is_stopped = False  # 新增：标记是否被停止
         self.last_update = time.time()
         self.create_time = time.time()
 
@@ -53,10 +54,14 @@ class AirplaneOwl02(IAirplane):
         self.command_lock = threading.Lock()
         self.command_sequence = 0  # 命令序列号生成器
 
+        # 新增：当前正在执行的命令序列号（用于指令队列模式）
+        self.current_active_command_key: Optional[tuple] = None
+
         # 重发配置
         self.max_retries = 3  # 最大重发次数
         self.retry_timeout = 2.0  # 重发超时时间（秒）
         self.async_mode = True  # 异步模式：不阻塞等待应答
+        self.queue_mode = True  # 新增：队列模式，新指令到来时停止旧指令重试
 
         # 线程池用于异步重发
         self.executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="cmd_retry")
@@ -158,11 +163,25 @@ class AirplaneOwl02(IAirplane):
 
         # 生成命令序列号
         sequence = self._get_next_sequence()
+        key = (command, sequence)
 
         # 创建命令状态
         with self.command_lock:
-            key = (command, sequence)
             self.command_status[key] = CommandStatus(command, sequence)
+
+            # 新增：如果启用队列模式，且当前有活动命令，则先停止当前命令
+            if self.queue_mode and self.current_active_command_key and self.current_active_command_key != key:
+                old_key = self.current_active_command_key
+                old_status = self.command_status.get(old_key)
+
+                # 检查旧命令是否还在执行中（未收到ACK）
+                if old_status and not old_status.is_received and not old_status.is_finished and not old_status.is_stopped:
+                    old_status.is_stopped = True
+                    print(f"⚠️ 警告：新指令 {command}(seq={sequence}) 到来时，上一个指令 {old_status.command}(seq={old_status.sequence}) 仍未发送成功，停止重试上一个指令")
+                    logger.warning(f"Queue mode: Stopped command {old_status.command} seq={old_status.sequence} (not sent successfully) for new command {command} seq={sequence}")
+
+            # 更新当前活动命令
+            self.current_active_command_key = key
 
         # 定义实际执行重试的函数
         def _retry_task():
@@ -170,6 +189,14 @@ class AirplaneOwl02(IAirplane):
             start_time = time.time()
 
             while retry_count < self.max_retries:
+                # 检查是否已被停止
+                with self.command_lock:
+                    status = self.command_status.get(key)
+                    if status and status.is_stopped:
+                        logger.info(f"Command {command} seq={sequence} stopped before sending")
+                        self._cleanup_active_command(key)
+                        return False
+
                 # 发送命令
                 cmd = mavlink2.MAVLink_command_long_message(
                     target_system=1,
@@ -195,19 +222,29 @@ class AirplaneOwl02(IAirplane):
                         if status:
                             if status.is_error:
                                 logger.error(f"Command {command} seq={sequence} rejected by device {self.target_channel_id}")
+                                self._cleanup_active_command(key)
                                 return False
 
                             if status.is_received and not wait_for_finish:
                                 logger.info(f"Command {command} seq={sequence} received by device {self.target_channel_id}")
+                                self._cleanup_active_command(key)
                                 return True
 
                             if status.is_finished:
                                 logger.info(f"Command {command} seq={sequence} finished by device {self.target_channel_id}")
+                                self._cleanup_active_command(key)
                                 return True
+
+                            # 检查是否被停止
+                            if status.is_stopped:
+                                logger.info(f"Command {command} seq={sequence} stopped by new command")
+                                self._cleanup_active_command(key)
+                                return False
 
                     # 检查总超时
                     if time.time() - start_time > timeout:
                         logger.warning(f"Command {command} seq={sequence} timeout after {timeout}s")
+                        self._cleanup_active_command(key)
                         return False
 
                     time.sleep(0.05)  # 50ms检查间隔
@@ -217,6 +254,7 @@ class AirplaneOwl02(IAirplane):
                     logger.warning(f"Command {command} seq={sequence} no response, retrying... ({retry_count}/{self.max_retries})")
 
             logger.error(f"Command {command} seq={sequence} failed after {self.max_retries} retries")
+            self._cleanup_active_command(key)
             return False
 
         if use_async:
@@ -227,6 +265,12 @@ class AirplaneOwl02(IAirplane):
         else:
             # 同步模式：阻塞等待完成
             return _retry_task()
+
+    def _cleanup_active_command(self, key: tuple):
+        """清理活动命令状态"""
+        with self.command_lock:
+            if self.current_active_command_key == key:
+                self.current_active_command_key = None
 
     def _cache_packet_record(self, msg_id: int, message: Any, raw_packet: bytes = b''):
         """缓存数据包记录"""
