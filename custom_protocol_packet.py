@@ -174,6 +174,15 @@ def send_mavlink_packet(serial_port, device_id: int, mav_msg):
     mav_bytes = mav_msg.pack(mav)
     wrapped = wrap_packet(device_id, mav_bytes)
     serial_port.write(wrapped)
+    pass
+
+
+def send_raw_packet(serial_port, device_id: int, data: bytes):
+    """发送原始数据包"""
+    print('send_raw_packet device_id', device_id, data)
+    wrapped = wrap_packet(device_id, data)
+    serial_port.write(wrapped)
+    pass
 
 
 def receive_mavlink_packet(serial_port, packet_parser=None):
