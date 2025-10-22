@@ -25,9 +25,10 @@ COMMAND_ERROR = 3    # 拒绝执行指令
 
 class CommandStatus:
     """命令状态追踪"""
-    def __init__(self, command: int, sequence: int):
+    def __init__(self, command: int, sequence: int, timestamp: float):
         self.command = command
         self.sequence = sequence  # 命令序列号，用于区分同一命令的不同调用
+        self.timestamp = timestamp  # Param7时间戳，用于避免重复包
         self.receive_count = 0  # 接收应答计数
         self.finish_count = 0   # 完成应答计数
         self.is_received = False
@@ -152,22 +153,27 @@ class AirplaneOwl02(IAirplane):
         """
         发送命令并自动重试（支持异步非阻塞模式）
         :param command: 命令ID
-        :param param1-7: 命令参数
+        :param param1-6: 命令参数
+        :param param7: 原始参数7（如果为0，则自动生成时间戳）
         :param wait_for_finish: 是否等待命令完成
         :param timeout: 等待超时时间
         :param async_mode: 是否异步模式（None时使用实例默认值）
         :return: 异步模式返回Future对象，同步模式返回是否成功
+
+        注意：Param7 现在用作时间戳，用于识别包和避免接收端收到重复包
         """
         # 确定是否使用异步模式
         use_async = async_mode if async_mode is not None else self.async_mode
 
-        # 生成命令序列号
+        # 生成命令序列号和时间戳
         sequence = self._get_next_sequence()
+        # 使用当前时间戳（毫秒级），如果param7已指定则使用指定值
+        timestamp = param7 if param7 != 0 else time.time()
         key = (command, sequence)
 
         # 创建命令状态
         with self.command_lock:
-            self.command_status[key] = CommandStatus(command, sequence)
+            self.command_status[key] = CommandStatus(command, sequence, timestamp)
 
             # 新增：如果启用队列模式，且当前有活动命令，则先停止当前命令
             if self.queue_mode and self.current_active_command_key and self.current_active_command_key != key:
@@ -177,8 +183,8 @@ class AirplaneOwl02(IAirplane):
                 # 检查旧命令是否还在执行中（未收到ACK）
                 if old_status and not old_status.is_received and not old_status.is_finished and not old_status.is_stopped:
                     old_status.is_stopped = True
-                    print(f"⚠️ 警告：新指令 {command}(seq={sequence}) 到来时，上一个指令 {old_status.command}(seq={old_status.sequence}) 仍未发送成功，停止重试上一个指令")
-                    logger.warning(f"Queue mode: Stopped command {old_status.command} seq={old_status.sequence} (not sent successfully) for new command {command} seq={sequence}")
+                    print(f"⚠️ 警告：新指令 {command}(seq={sequence}, ts={timestamp:.3f}) 到来时，上一个指令 {old_status.command}(seq={old_status.sequence}, ts={old_status.timestamp:.3f}) 仍未发送成功，停止重试上一个指令")
+                    logger.warning(f"Queue mode: Stopped command {old_status.command} seq={old_status.sequence} ts={old_status.timestamp:.3f} for new command {command} seq={sequence} ts={timestamp:.3f}")
 
             # 更新当前活动命令
             self.current_active_command_key = key
@@ -193,11 +199,11 @@ class AirplaneOwl02(IAirplane):
                 with self.command_lock:
                     status = self.command_status.get(key)
                     if status and status.is_stopped:
-                        logger.info(f"Command {command} seq={sequence} stopped before sending")
+                        logger.info(f"Command {command} seq={sequence} ts={timestamp:.3f} stopped before sending")
                         self._cleanup_active_command(key)
                         return False
 
-                # 发送命令
+                # 发送命令 - 使用相同的时间戳作为param7
                 cmd = mavlink2.MAVLink_command_long_message(
                     target_system=1,
                     target_component=1,
@@ -209,10 +215,10 @@ class AirplaneOwl02(IAirplane):
                     param4=param4,
                     param5=param5,
                     param6=param6,
-                    param7=param7
+                    param7=timestamp  # 使用时间戳作为param7
                 )
                 self.send_msg(cmd)
-                logger.debug(f"Sent command {command} seq={sequence} to device {self.target_channel_id} (attempt {retry_count + 1}/{self.max_retries})")
+                logger.debug(f"Sent command {command} seq={sequence} ts={timestamp:.3f} to device {self.target_channel_id} (attempt {retry_count + 1}/{self.max_retries})")
 
                 # 等待应答
                 wait_start = time.time()
@@ -221,29 +227,29 @@ class AirplaneOwl02(IAirplane):
                         status = self.command_status.get(key)
                         if status:
                             if status.is_error:
-                                logger.error(f"Command {command} seq={sequence} rejected by device {self.target_channel_id}")
+                                logger.error(f"Command {command} seq={sequence} ts={timestamp:.3f} rejected by device {self.target_channel_id}")
                                 self._cleanup_active_command(key)
                                 return False
 
                             if status.is_received and not wait_for_finish:
-                                logger.info(f"Command {command} seq={sequence} received by device {self.target_channel_id}")
+                                logger.info(f"Command {command} seq={sequence} ts={timestamp:.3f} received by device {self.target_channel_id}")
                                 self._cleanup_active_command(key)
                                 return True
 
                             if status.is_finished:
-                                logger.info(f"Command {command} seq={sequence} finished by device {self.target_channel_id}")
+                                logger.info(f"Command {command} seq={sequence} ts={timestamp:.3f} finished by device {self.target_channel_id}")
                                 self._cleanup_active_command(key)
                                 return True
 
                             # 检查是否被停止
                             if status.is_stopped:
-                                logger.info(f"Command {command} seq={sequence} stopped by new command")
+                                logger.info(f"Command {command} seq={sequence} ts={timestamp:.3f} stopped by new command")
                                 self._cleanup_active_command(key)
                                 return False
 
                     # 检查总超时
                     if time.time() - start_time > timeout:
-                        logger.warning(f"Command {command} seq={sequence} timeout after {timeout}s")
+                        logger.warning(f"Command {command} seq={sequence} ts={timestamp:.3f} timeout after {timeout}s")
                         self._cleanup_active_command(key)
                         return False
 
@@ -251,16 +257,16 @@ class AirplaneOwl02(IAirplane):
 
                 retry_count += 1
                 if retry_count < self.max_retries:
-                    logger.warning(f"Command {command} seq={sequence} no response, retrying... ({retry_count}/{self.max_retries})")
+                    logger.warning(f"Command {command} seq={sequence} ts={timestamp:.3f} no response, retrying... ({retry_count}/{self.max_retries})")
 
-            logger.error(f"Command {command} seq={sequence} failed after {self.max_retries} retries")
+            logger.error(f"Command {command} seq={sequence} ts={timestamp:.3f} failed after {self.max_retries} retries")
             self._cleanup_active_command(key)
             return False
 
         if use_async:
             # 异步模式：提交到线程池，立即返回Future对象
             future = self.executor.submit(_retry_task)
-            logger.debug(f"Command {command} seq={sequence} submitted asynchronously")
+            logger.debug(f"Command {command} seq={sequence} ts={timestamp:.3f} submitted asynchronously")
             return future
         else:
             # 同步模式：阻塞等待完成
