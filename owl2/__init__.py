@@ -32,7 +32,7 @@ from .airplane_interface import (
 from .custom_protocol_packet import (
     PacketParser,
     wrap_packet,
-    send_mavlink_packet,
+    send_mavlink_packet_by_custom_protocol,
     send_raw_packet,
     receive_mavlink_packet
 )
@@ -65,7 +65,7 @@ __all__ = [
     # 协议包工具
     'PacketParser',
     'wrap_packet',
-    'send_mavlink_packet',
+    'send_mavlink_packet_by_custom_protocol',
     'send_raw_packet',
     'receive_mavlink_packet',
 ]

@@ -10,7 +10,7 @@ import logging
 from pymavlink import mavutil
 
 from .airplane_owl02 import AirplaneOwl02
-from .custom_protocol_packet import PacketParser, send_mavlink_packet
+from .custom_protocol_packet import PacketParser, send_mavlink_packet_by_custom_protocol
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -153,7 +153,7 @@ class AirplaneManagerOwl02:
         if len(packets) > 0:
             print('packets', packets)
 
-        for packet_info in packets:
+        for packet_info, raw_data in packets:
             device_id = packet_info['device_id']
             payload = packet_info['payload']
 
@@ -220,7 +220,7 @@ class AirplaneManagerOwl02:
             return False
 
         try:
-            send_mavlink_packet(self.serial_port, device_id, msg)
+            send_mavlink_packet_by_custom_protocol(self.serial_port, device_id, msg)
             logger.debug(f"Sent message to device {device_id}: {type(msg).__name__}")
             return True
         except Exception as e:

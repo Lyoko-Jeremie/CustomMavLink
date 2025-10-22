@@ -111,7 +111,7 @@ class PacketParser:
             try:
                 parsed_packet = self._parse_single_packet(packet_data)
                 if parsed_packet:
-                    packets.append(parsed_packet)
+                    packets.append((parsed_packet, packet_data))
                 # 从缓存中移除已处理的包
                 self.buffer = self.buffer[total_length:]
             except ValueError as e:
@@ -166,14 +166,24 @@ class PacketParser:
         }
 
 
-def send_mavlink_packet(serial_port, device_id: int, mav_msg):
+def send_mavlink_packet_by_custom_protocol(serial_port, device_id: int, mav_msg):
     """发送MavLink数据包"""
     # 创建MavLink对象来序列化消息
-    print('send_mavlink_packet device_id', device_id, mav_msg)
+    print('send_mavlink_packet_by_custom_protocol device_id', device_id, mav_msg)
     mav = mavlink2.MAVLink(None)
     mav_bytes = mav_msg.pack(mav)
     wrapped = wrap_packet(device_id, mav_bytes)
     serial_port.write(wrapped)
+    pass
+
+
+def send_mavlink_packet_raw(serial_port, mav_msg):
+    """发送MavLink数据包"""
+    # 创建MavLink对象来序列化消息
+    print('send_mavlink_packet_raw device_id',  mav_msg)
+    mav = mavlink2.MAVLink(None)
+    mav_bytes = mav_msg.pack(mav)
+    serial_port.write(mav_bytes)
     pass
 
 
@@ -207,9 +217,10 @@ def receive_mavlink_packet(serial_port, packet_parser=None):
     # 尝试解析数据包
     packets = packet_parser.parse_packets()
 
-    if packets:
+    if packets and len(packets) > 0:
         # 返回第一个解析到的包
-        packet_info = packets[0]
+        # TODO 处理多个包
+        packet_info, raw_data = packets[0]
         payload = packet_info['payload']
         device_id = packet_info['device_id']
 
