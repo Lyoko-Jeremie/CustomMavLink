@@ -7,12 +7,12 @@
 记录当前读取到的无人机配对包，并显示其Hex数据，
 在GUI中显示已经记录的所有无人机配对包Hex数据，
 
-打开一个或多个地面板串口，
+打开一个地面板串口，
 让用户选择一个无人机配对包并写入到地面板的指定通道上并显示是否写入成功。
 
 在GUI中显示当前地面板上的0~15个通道的无人机配对包Hex数据。
 
-需要区分连接到无人机的多个串口和连接到地面板的多个串口。
+需要区分连接到无人机的多个串口，但只有一个连接到地面板的串口。
 
 """
 
@@ -35,7 +35,8 @@ class PairToolsGUI:
 
         # 串口连接字典
         self.drone_ports = {}  # {port_name: serial.Serial}
-        self.board_ports = {}  # {port_name: serial.Serial}
+        self.board_port = None  # 只保存一个地面板串口连接
+        self.board_port_name = None  # 当前连接的地面板串口名称
 
         # 已读取的无人机ID列表
         self.airplane_ids = []  # List[AirplaneId]
@@ -165,13 +166,6 @@ class PairToolsGUI:
         ttk.Button(btn_frame, text="连接", command=self._connect_board_port).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_frame, text="断开", command=self._disconnect_board_port).pack(side=tk.LEFT, padx=2)
 
-        # 已连接串口列表
-        list_frame = ttk.LabelFrame(parent, text="已连接串口", padding=10)
-        list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-
-        self.board_ports_listbox = tk.Listbox(list_frame, height=4)
-        self.board_ports_listbox.pack(fill=tk.BOTH, expand=True)
-
         # 配对操作区域
         pair_frame = ttk.LabelFrame(parent, text="配对操作", padding=10)
         pair_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -208,6 +202,14 @@ class PairToolsGUI:
 
         self.channels_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 状态显示区域
+        status_frame = ttk.LabelFrame(parent, text="状态", padding=10)
+        status_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # 地面板连接状态
+        self.board_status_label = ttk.Label(status_frame, text="未连接", foreground='red', font=('Arial', 12))
+        self.board_status_label.pack(side=tk.LEFT, padx=5)
 
         # 初始化端口列表
         self._refresh_board_ports()
@@ -264,41 +266,48 @@ class PairToolsGUI:
             messagebox.showinfo("成功", f"已断开串口 {port_name}")
 
     def _connect_board_port(self):
-        """连接地面板串口"""
+        """连接地面板串口（仅支持一个连接）"""
         port_name = self.board_port_combo.get()
         if not port_name:
             messagebox.showwarning("警告", "请选择串口")
             return
 
-        if port_name in self.board_ports:
+        # 如果已经连接了相同的串口，提示用户
+        if self.board_port and self.board_port_name == port_name:
             messagebox.showinfo("提示", f"串口 {port_name} 已连接")
             return
+
+        # 如果已经连接了其他串口，先断开旧连接
+        if self.board_port:
+            old_port_name = self.board_port_name
+            self._disconnect_board_port(silent=True)
+            messagebox.showinfo("提示", f"已自动断开旧地面板 {old_port_name}，准备连接新地面板")
 
         try:
             baud_rate = int(self.board_baud_combo.get())
             ser = serial.Serial(port_name, baud_rate, timeout=1)
-            self.board_ports[port_name] = ser
-            self.board_ports_listbox.insert(tk.END, f"{port_name} ({baud_rate})")
-            messagebox.showinfo("成功", f"成功连接串口 {port_name}")
+            self.board_port = ser
+            self.board_port_name = port_name
+
+            # 清除旧的通道配对信息
+            self.board_channels.clear()
+            self._update_channels_list()
+            self._update_board_status()
+
+            messagebox.showinfo("成功", f"成功连接地面板 {port_name}\n通道配对信息已清空")
         except Exception as e:
             messagebox.showerror("错误", f"连接串口失败: {str(e)}")
+            self._update_board_status()
 
-    def _disconnect_board_port(self):
+    def _disconnect_board_port(self, silent=False):
         """断开地面板串口"""
-        selection = self.board_ports_listbox.curselection()
-        if not selection:
-            messagebox.showwarning("警告", "请选择要断开的串口")
-            return
-
-        index = selection[0]
-        port_info = self.board_ports_listbox.get(index)
-        port_name = port_info.split()[0]
-
-        if port_name in self.board_ports:
-            self.board_ports[port_name].close()
-            del self.board_ports[port_name]
-            self.board_ports_listbox.delete(index)
-            messagebox.showinfo("成功", f"已断开串口 {port_name}")
+        if self.board_port:
+            self.board_port.close()
+            self.board_port = None
+            self.board_port_name = None
+            self.channels_tree.delete(*self.channels_tree.get_children())
+            if not silent:
+                messagebox.showinfo("成功", "已断开地面板串口")
 
     def _read_drone_id(self):
         """从选中的无人机串口读取ID"""
@@ -356,9 +365,8 @@ class PairToolsGUI:
             return
 
         # 检查是否选择了地面板串口
-        board_selection = self.board_ports_listbox.curselection()
-        if not board_selection:
-            messagebox.showwarning("警告", "请先选择一个地面板串口")
+        if not self.board_port:
+            messagebox.showwarning("警告", "请先连接一个地面板串口")
             return
 
         # 获取选中的无人机ID
@@ -384,18 +392,11 @@ class PairToolsGUI:
             return
 
         # 获取地面板串口
-        board_index = board_selection[0]
-        port_info = self.board_ports_listbox.get(board_index)
-        port_name = port_info.split()[0]
-
-        if port_name not in self.board_ports:
-            messagebox.showerror("错误", "地面板串口未连接")
-            return
+        serial_port = self.board_port
 
         # 在新线程中写入
         def write_thread():
             try:
-                serial_port = self.board_ports[port_name]
                 success = self.pair_manager.set_airplane_id_to_channel(serial_port, channel, airplane_id, timeout=3.0)
 
                 if success:
@@ -427,6 +428,14 @@ class PairToolsGUI:
                 addr = "未配对"
             self.channels_tree.insert('', tk.END, values=(channel, addr))
 
+    def _update_board_status(self):
+        """更新地面板连接状态显示"""
+        if self.board_port and self.board_port_name:
+            status_text = f"已连接: {self.board_port_name}"
+            self.board_status_label.config(text=status_text, foreground='green')
+        else:
+            self.board_status_label.config(text="未连接", foreground='red')
+
     def run(self):
         """运行GUI"""
         self.root.mainloop()
@@ -434,8 +443,8 @@ class PairToolsGUI:
         # 关闭所有串口
         for port in self.drone_ports.values():
             port.close()
-        for port in self.board_ports.values():
-            port.close()
+        if self.board_port:
+            self.board_port.close()
 
 
 def main():
