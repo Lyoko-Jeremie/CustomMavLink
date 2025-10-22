@@ -5602,6 +5602,7 @@ MAVLINK_MSG_ID_REQUEST_EVENT = 412
 MAVLINK_MSG_ID_RESPONSE_EVENT_ERROR = 413
 MAVLINK_MSG_ID_COMPONENT_EXTENSION43 = 500
 MAVLINK_MSG_ID_BATTERY_STATUS_ACFLY = 602
+MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI = 800
 MAVLINK_MSG_ID_WHEEL_DISTANCE = 9000
 MAVLINK_MSG_ID_WINCH_STATUS = 9005
 MAVLINK_MSG_ID_OPEN_DRONE_ID_BASIC_ID = 12900
@@ -16155,6 +16156,48 @@ class MAVLink_battery_status_acfly_message(MAVLink_message):
 setattr(MAVLink_battery_status_acfly_message, "name", mavlink_msg_deprecated_name_property())
 
 
+class MAVLink_one_to_more_addr_xinguangfei_message(MAVLink_message):
+    """
+    Battery information. Updates GCS with flight controller battery
+    status. Smart batteries also use this message, but may
+    additionally send SMART_BATTERY_INFO.
+    """
+
+    id = MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI
+    msgname = "ONE_TO_MORE_ADDR_XINGUANGFEI"
+    fieldnames = ["mtx_address", "mrx_address_ack", "mrx_address_p1"]
+    ordered_fieldnames = ["mtx_address", "mrx_address_ack", "mrx_address_p1"]
+    fieldtypes = ["uint8_t", "uint8_t", "uint8_t"]
+    fielddisplays_by_name: Dict[str, str] = {}
+    fieldenums_by_name: Dict[str, str] = {}
+    fieldunits_by_name: Dict[str, str] = {"mrx_address_ack": "%", "mrx_address_p1": "%"}
+    native_format = bytearray(b"<BBB")
+    orders = [0, 1, 2]
+    lengths = [5, 5, 5]
+    array_lengths = [5, 5, 5]
+    crc_extra = 82
+    unpacker = struct.Struct("<5B5B5B")
+    instance_field = "mtx_address"
+    instance_offset = 0
+
+    def __init__(self, mtx_address: Sequence[int], mrx_address_ack: Sequence[int], mrx_address_p1: Sequence[int]):
+        MAVLink_message.__init__(self, MAVLink_one_to_more_addr_xinguangfei_message.id, MAVLink_one_to_more_addr_xinguangfei_message.msgname)
+        self._fieldnames = MAVLink_one_to_more_addr_xinguangfei_message.fieldnames
+        self._instance_field = MAVLink_one_to_more_addr_xinguangfei_message.instance_field
+        self._instance_offset = MAVLink_one_to_more_addr_xinguangfei_message.instance_offset
+        self.mtx_address = mtx_address
+        self.mrx_address_ack = mrx_address_ack
+        self.mrx_address_p1 = mrx_address_p1
+
+    def pack(self, mav: "MAVLink", force_mavlink1: bool = False) -> bytes:
+        return self._pack(mav, self.crc_extra, self.unpacker.pack(self.mtx_address[0], self.mtx_address[1], self.mtx_address[2], self.mtx_address[3], self.mtx_address[4], self.mrx_address_ack[0], self.mrx_address_ack[1], self.mrx_address_ack[2], self.mrx_address_ack[3], self.mrx_address_ack[4], self.mrx_address_p1[0], self.mrx_address_p1[1], self.mrx_address_p1[2], self.mrx_address_p1[3], self.mrx_address_p1[4]), force_mavlink1=force_mavlink1)
+
+
+# Define name on the class for backwards compatibility (it is now msgname).
+# Done with setattr to hide the class variable from mypy.
+setattr(MAVLink_one_to_more_addr_xinguangfei_message, "name", mavlink_msg_deprecated_name_property())
+
+
 class MAVLink_wheel_distance_message(MAVLink_message):
     """
     Cumulative distance traveled for each reported wheel.
@@ -17044,6 +17087,7 @@ mavlink_map: Dict[int, Type[MAVLink_message]] = {
     MAVLINK_MSG_ID_RESPONSE_EVENT_ERROR: MAVLink_response_event_error_message,
     MAVLINK_MSG_ID_COMPONENT_EXTENSION43: MAVLink_component_extension43_message,
     MAVLINK_MSG_ID_BATTERY_STATUS_ACFLY: MAVLink_battery_status_acfly_message,
+    MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI: MAVLink_one_to_more_addr_xinguangfei_message,
     MAVLINK_MSG_ID_WHEEL_DISTANCE: MAVLink_wheel_distance_message,
     MAVLINK_MSG_ID_WINCH_STATUS: MAVLink_winch_status_message,
     MAVLINK_MSG_ID_OPEN_DRONE_ID_BASIC_ID: MAVLink_open_drone_id_basic_id_message,
@@ -17997,7 +18041,7 @@ class MAVLink(object):
         ymag                      : Y Magnetic field [mgauss] (type:int16_t)
         zmag                      : Z Magnetic field [mgauss] (type:int16_t)
         temperature               : Temperature, 0: IMU does not provide temperature values. If the IMU is at 0C it must send 1 (0.01C). [cdegC] (type:int16_t)
-        daoYaw                    : 鍙屽ぉ绾夸紶鎰熷櫒1瑙掑害 [0.1deg] (type:int16_t)
+        daoYaw                    : 双天线传感器1角度 [0.1deg] (type:int16_t)
 
         """
         return MAVLink_scaled_imu_message(time_boot_ms, xacc, yacc, zacc, xgyro, ygyro, zgyro, xmag, ymag, zmag, temperature, daoYaw)
@@ -18018,7 +18062,7 @@ class MAVLink(object):
         ymag                      : Y Magnetic field [mgauss] (type:int16_t)
         zmag                      : Z Magnetic field [mgauss] (type:int16_t)
         temperature               : Temperature, 0: IMU does not provide temperature values. If the IMU is at 0C it must send 1 (0.01C). [cdegC] (type:int16_t)
-        daoYaw                    : 鍙屽ぉ绾夸紶鎰熷櫒1瑙掑害 [0.1deg] (type:int16_t)
+        daoYaw                    : 双天线传感器1角度 [0.1deg] (type:int16_t)
 
         """
         self.send(self.scaled_imu_encode(time_boot_ms, xacc, yacc, zacc, xgyro, ygyro, zgyro, xmag, ymag, zmag, temperature, daoYaw), force_mavlink1=force_mavlink1)
@@ -25550,6 +25594,32 @@ class MAVLink(object):
 
         """
         self.send(self.battery_status_acfly_encode(id, health, remaining_percentage, cell_count, fault_bitmask, temperature, cycle_count, current, voltage, capacity, sequence_num, voltages), force_mavlink1=force_mavlink1)
+
+    def one_to_more_addr_xinguangfei_encode(self, mtx_address: Sequence[int], mrx_address_ack: Sequence[int], mrx_address_p1: Sequence[int]) -> MAVLink_one_to_more_addr_xinguangfei_message:
+        """
+        Battery information. Updates GCS with flight controller battery
+        status. Smart batteries also use this message, but may
+        additionally send SMART_BATTERY_INFO.
+
+        mtx_address               : mtx address (type:uint8_t)
+        mrx_address_ack           : mrx address ack [%] (type:uint8_t)
+        mrx_address_p1            : mrx address p1 [%] (type:uint8_t)
+
+        """
+        return MAVLink_one_to_more_addr_xinguangfei_message(mtx_address, mrx_address_ack, mrx_address_p1)
+
+    def one_to_more_addr_xinguangfei_send(self, mtx_address: Sequence[int], mrx_address_ack: Sequence[int], mrx_address_p1: Sequence[int], force_mavlink1: bool = False) -> None:
+        """
+        Battery information. Updates GCS with flight controller battery
+        status. Smart batteries also use this message, but may
+        additionally send SMART_BATTERY_INFO.
+
+        mtx_address               : mtx address (type:uint8_t)
+        mrx_address_ack           : mrx address ack [%] (type:uint8_t)
+        mrx_address_p1            : mrx address p1 [%] (type:uint8_t)
+
+        """
+        self.send(self.one_to_more_addr_xinguangfei_encode(mtx_address, mrx_address_ack, mrx_address_p1), force_mavlink1=force_mavlink1)
 
     def wheel_distance_encode(self, time_usec: int, count: int, distance: Sequence[float]) -> MAVLink_wheel_distance_message:
         """
