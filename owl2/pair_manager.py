@@ -37,7 +37,7 @@ from .custom_protocol_packet import (
     PacketParser,
     wrap_packet,
     PROTOCOL_SETADDR_PAIR,
-    PROTOCOL_SETADDR_PAIR_ACK
+    PROTOCOL_SETADDR_PAIR_ACK,
 )
 
 
@@ -65,8 +65,34 @@ class PairManager:
     def __init__(self):
         self.airplane_ids = []
         self.paired_channels = {}
-
         pass
+
+    @staticmethod
+    def _receive_raw_mavlink_message(serial_port, timeout: float = 2.0, expected_msg_id: int = None):
+        """
+        接收原始 MAVLink 消息（不经过自定义协议封装）
+        :param serial_port: 串口对象
+        :param timeout: 超时时间（秒）
+        :param expected_msg_id: 期望的消息ID，如果指定则只返回匹配的消息
+        :return: MAVLink 消息对象，超时返回 None
+        """
+        mav_parser = mavlink2.MAVLink(None)
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            if serial_port.in_waiting > 0:
+                data = serial_port.read(1)
+                msg = mav_parser.parse_char(data)
+
+                if msg:
+                    # 如果指定了期望的消息ID，检查是否匹配
+                    if expected_msg_id is None or msg.get_msgId() == expected_msg_id:
+                        return msg
+                    # 如果不匹配，继续等待
+
+            time.sleep(0.001)  # 短暂等待避免CPU占用过高
+
+        return None
 
     def _get_airplane_id_from_serial(self, serial_port_name: str, baudrate: int = 115200, timeout: float = 2.0) -> AirplaneId:
         """
@@ -96,38 +122,34 @@ class PairManager:
             send_mavlink_packet_raw(ser, request_msg)
 
             # 等待回复报文 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801
-            mav_parser = mavlink2.MAVLink(None)
-            start_time = time.time()
+            msg = self._receive_raw_mavlink_message(
+                ser,
+                timeout=timeout,
+                expected_msg_id=mavlink2.MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI
+            )
 
-            while time.time() - start_time < timeout:
-                if ser.in_waiting > 0:
-                    data = ser.read(1)
-                    msg = mav_parser.parse_char(data)
+            if msg is None:
+                raise TimeoutError(f"等待无人机ID回复超时 (>{timeout}秒)")
 
-                    if msg and msg.get_msgId() == mavlink2.MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI:
-                        # 解析回复报文，构造 AirplaneId 对象并返回
-                        # msg 有属性: mtx_address, mrx_address_ack, mrx_address_p1 (都是list或array)
-                        mtx_address = bytes(msg.mtx_address)
-                        mrx_address_ack = bytes(msg.mrx_address_ack)
-                        mrx_address_p1 = bytes(msg.mrx_address_p1)
+            # 解析回复报文，构造 AirplaneId 对象并返回
+            # msg 有属性: mtx_address, mrx_address_ack, mrx_address_p1 (都是list或array)
+            mtx_address = bytes(msg.mtx_address)
+            mrx_address_ack = bytes(msg.mrx_address_ack)
+            mrx_address_p1 = bytes(msg.mrx_address_p1)
 
-                        # TODO: 需要确认raw_pack是否应该是完整的mavlink消息字节
-                        # 这里暂时使用pack方法重新打包消息作为raw_pack
-                        mav_temp = mavlink2.MAVLink(None)
-                        raw_pack = msg.pack(mav_temp)
+            # TODO: 需要确认raw_pack是否应该是完整的mavlink消息字节
+            # 这里暂时使用pack方法重新打包消息作为raw_pack
+            mav_temp = mavlink2.MAVLink(None)
+            raw_pack = msg.pack(mav_temp)
 
-                        airplane_id = AirplaneId(
-                            raw_pack=raw_pack,
-                            mtx_address=mtx_address,
-                            mrx_address_ack=mrx_address_ack,
-                            mrx_address_p1=mrx_address_p1
-                        )
+            airplane_id = AirplaneId(
+                raw_pack=raw_pack,
+                mtx_address=mtx_address,
+                mrx_address_ack=mrx_address_ack,
+                mrx_address_p1=mrx_address_p1
+            )
 
-                        return airplane_id
-
-                time.sleep(0.01)  # 短暂等待避免CPU占用过高
-
-            raise TimeoutError(f"等待无人机ID回复超时 (>{timeout}秒)")
+            return airplane_id
 
         finally:
             if ser and ser.is_open:
