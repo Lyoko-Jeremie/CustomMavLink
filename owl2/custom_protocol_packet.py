@@ -25,7 +25,7 @@ MAX_PAYLOAD_SIZE = 58
 PROTOCOL_COMMAND_MSG = 0        # 普通命令消息 (0x00)
 PROTOCOL_SETADDR_PAIR = 32      # 配对地址设置 (0x20)
 PROTOCOL_SETADDR_PAIR_ACK = 64  # 配对地址设置应答 (0x40)
-PROTOCOL_SETADDR_PAIR_REQUEST = 96  # 配对地址请求 (0x60)
+PROTOCOL_SETADDR_PAIR_REQUEST = 96  # 配对数据地址请求 (0x60)
 
 
 def wrap_packet(device_id: int, data: bytes, protocol_mode: int = PROTOCOL_COMMAND_MSG) -> bytes:
