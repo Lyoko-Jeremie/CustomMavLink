@@ -201,10 +201,10 @@ def receive_mavlink_packet(serial_port, packet_parser=None):
 
     Args:
         serial_port: 串口对象
-        packet_parser: PacketParser实例，如果为None则创建新实例
+        packet_parser: PacketParser实例，���果为None则创建新实例
 
     Returns:
-        包含device_id和mavlink_msg的字典，或None
+        包含多个数据包的列表，每个元素为字典，包含device_id、mavlink_msg和raw_packet，或空列表
     """
     if packet_parser is None:
         packet_parser = PacketParser()
@@ -217,35 +217,38 @@ def receive_mavlink_packet(serial_port, packet_parser=None):
     # 尝试解析数据包
     packets = packet_parser.parse_packets()
 
-    if packets and len(packets) > 0:
-        # 返回第一个解析到的包
-        # TODO 处理多个包
-        packet_info, raw_data = packets[0]
+    result = []
+
+    # 处理所有解析到的包
+    for packet_info, raw_data in packets:
         payload = packet_info['payload']
         device_id = packet_info['device_id']
 
-        # 解析MavLink消息
+        # 解析MavLink消息（每个包中只有一个MavLink消息）
         try:
             # 创建MavLink解析器
             mav = mavlink2.MAVLink(None)
-            msgs = []
 
             # 逐字节解析MavLink消息
+            msg = None
             for byte in payload:
-                msg = mav.parse_char(bytes([byte]))
-                if msg:
-                    msgs.append(msg)
+                parsed = mav.parse_char(bytes([byte]))
+                if parsed:
+                    msg = parsed
+                    break  # 找到消息后立即停止
 
-            if msgs:
-                return {
+            if msg:
+                result.append({
                     'device_id': device_id,
-                    'mavlink_msg': msgs[0]  # 返回第一个解析到的消息
-                }
+                    'mavlink_msg': msg,
+                    'raw_packet': raw_data
+                })
         except Exception as e:
             print(f"MavLink parsing error: {e}")
-            return {
+            result.append({
                 'device_id': device_id,
-                'raw_payload': payload
-            }
+                'raw_payload': payload,
+                'raw_packet': raw_data
+            })
 
-    return None
+    return result
