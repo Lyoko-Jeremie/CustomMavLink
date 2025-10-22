@@ -47,7 +47,7 @@ class AirplaneId:
     """
 
     def __init__(self, raw_pack: bytes, mtx_address: bytes, mrx_address_ack: bytes, mrx_address_p1: bytes):
-        self.raw_pack = raw_pack    # __mavlink_one_to_more_addr_xinguangfei_t raw packet (mavlink message bytes)
+        self.raw_pack = raw_pack  # __mavlink_one_to_more_addr_xinguangfei_t raw packet (mavlink message bytes)
         self.mtx_address = mtx_address  # type: bytes  # 5 bytes
         self.mrx_address_ack = mrx_address_ack  # type: bytes  # 5 bytes
         self.mrx_address_p1 = mrx_address_p1  # type: bytes  # 5 bytes
@@ -145,7 +145,7 @@ class PairManager:
         return airplane_id
 
     def set_airplane_id_to_channel(self, serial_port: serial.Serial, channel: int, airplane_id: AirplaneId,
-                                    timeout: float = 2.0) -> bool:
+                                   timeout: float = 2.0) -> bool:
         """
         将无人机ID写入地面板指定通道
         :param serial_port: 已打开的串口对象（地面板）
@@ -204,7 +204,7 @@ class PairManager:
     # TODO: 添加从地面板读取当前设置的0~15号通道无人机ID的功能
     # 可能需要使用 PROTOCOL_SETADDR_PAIR_REQUEST 协议模式
     def get_channel_id_from_board(self, serial_port: serial.Serial, channel: int,
-                                   timeout: float = 2.0) -> AirplaneId:
+                                  timeout: float = 2.0) -> dict[int, AirplaneId]:
         """
         从地面板读取指定通道的无人机ID
         :param serial_port: 已打开的串口对象（地面板）
@@ -214,4 +214,5 @@ class PairManager:
         """
         # TODO: 实现从地面板读取通道ID的功能
         # 需要明确PROTOCOL_SETADDR_PAIR_REQUEST的具体使用方式和回复格式
-        raise NotImplementedError("从地面板读取通道ID功能尚未实现")
+        return self.paired_channels
+
