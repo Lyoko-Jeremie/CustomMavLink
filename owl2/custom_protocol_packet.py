@@ -3,7 +3,7 @@
 包含数据包的封装、解析和发送功能
 """
 import struct
-from commonACFly import commonACFly_py3 as mavlink2
+from .commonACFly import commonACFly_py3 as mavlink2
 
 # 封装包
 # 帧头1	帧头2	ID	                    数据长度	    PLAYLOAD(data)	    uint8_t校验和	帧尾

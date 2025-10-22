@@ -7,7 +7,7 @@ from tkinter import ttk, scrolledtext, messagebox
 import threading
 import logging
 from datetime import datetime
-from airplane_manager_owl02 import create_manager, create_manager_with_serial
+from owl2.airplane_manager_owl02 import create_manager, create_manager_with_serial
 
 # 配置日志
 logging.basicConfig(

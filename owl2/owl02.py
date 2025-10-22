@@ -1,7 +1,7 @@
 from time import sleep
 from typing import Union, Optional
-from airplane_manager_owl02 import get_airplane_manager_owl02, AirplaneManagerOwl02
-from airplane_owl02 import AirplaneOwl02
+from .airplane_manager_owl02 import get_airplane_manager_owl02, AirplaneManagerOwl02
+from .airplane_owl02 import AirplaneOwl02
 
 
 class Owl02:

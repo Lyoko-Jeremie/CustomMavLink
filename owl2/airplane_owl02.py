@@ -3,12 +3,12 @@
 """
 from datetime import datetime
 from typing import Dict, Optional, Any, Callable
-from commonACFly import commonACFly_py3 as mavlink2
+from .commonACFly import commonACFly_py3 as mavlink2
 import threading
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from airplane_interface import (
+from .airplane_interface import (
     IAirplane, FlyModeEnum, FlyModeAutoEnum, FlyModeStableEnum,
     AirplaneState, MavLinkPacketRecord
 )

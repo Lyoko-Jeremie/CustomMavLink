@@ -6,12 +6,11 @@ import serial
 import time
 import threading
 from typing import Dict, Optional, Callable, Any
-from datetime import datetime
 import logging
 from pymavlink import mavutil
 
-from airplane_owl02 import AirplaneOwl02
-from packet_utils import PacketParser, send_mavlink_packet
+from .airplane_owl02 import AirplaneOwl02
+from .custom_protocol_packet import PacketParser, send_mavlink_packet
 
 # 配置日志
 logger = logging.getLogger(__name__)
