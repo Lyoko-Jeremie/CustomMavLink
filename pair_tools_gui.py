@@ -294,7 +294,11 @@ class PairToolsGUI:
             self._update_channels_list()
             self._update_board_status()
 
-            messagebox.showinfo("成功", f"成功连接地面板 {port_name}\n通道配对信息已清空")
+            messagebox.showinfo("成功", f"成功连接地面板 {port_name}\n正在读取通道配对信息...")
+
+            # 延迟后自动刷新通道列表
+            self.root.after(500, self._refresh_board_channels)
+
         except Exception as e:
             messagebox.showerror("错误", f"连接串口失败: {str(e)}")
             self._update_board_status()
@@ -429,12 +433,65 @@ class PairToolsGUI:
             self.channels_tree.insert('', tk.END, values=(channel, addr))
 
     def _update_board_status(self):
-        """更新地面板连接状态显示"""
+        """更新地面板连���状态显示"""
         if self.board_port and self.board_port_name:
             status_text = f"已连接: {self.board_port_name}"
             self.board_status_label.config(text=status_text, foreground='green')
         else:
             self.board_status_label.config(text="未连接", foreground='red')
+
+    def _refresh_board_channels(self):
+        """从地面板读取所有通道的配对信息并刷新显示"""
+        if not self.board_port:
+            return
+
+        # 在新线程中读取，避免界面冻结
+        def read_thread():
+            try:
+                # 从地面板读取所有通道的配对信息
+                channels_data = self.pair_manager.get_channel_id_from_board(
+                    self.board_port,
+                    channel=None,  # None表示读取所有通道
+                    timeout=2.0
+                )
+
+                # 更新内部数据
+                self.board_channels.clear()
+                self.board_channels.update(channels_data)
+
+                # 更新界面显示
+                self.root.after(0, self._update_channels_list)
+
+                # 显示读取结果
+                paired_count = len(channels_data)
+                self.root.after(0, lambda: self._update_status_message(
+                    f"已读取 {paired_count} 个通道的配对信息"
+                ))
+
+            except Exception as e:
+                self.root.after(0, lambda: self._update_status_message(
+                    f"读取通道信息失败: {str(e)}", error=True
+                ))
+
+        thread = threading.Thread(target=read_thread, daemon=True)
+        thread.start()
+
+    def _update_status_message(self, message, error=False):
+        """更新状态消息（临时显示在状态标签上）"""
+        if self.board_port and self.board_port_name:
+            if error:
+                self.board_status_label.config(
+                    text=f"已连接: {self.board_port_name} | {message}",
+                    foreground='orange'
+                )
+            else:
+                self.board_status_label.config(
+                    text=f"已连接: {self.board_port_name} | {message}",
+                    foreground='green'
+                )
+
+            # 2秒后恢复正常状态显示
+            self.root.after(2000, self._update_board_status)
 
     def run(self):
         """运行GUI"""
