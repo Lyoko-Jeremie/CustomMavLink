@@ -469,4 +469,5 @@ fabric.properties
 
 
 .idea/copilot*
+!build_pair_tool.spec
 
