@@ -18091,7 +18091,7 @@ class MAVLink(object):
         ymag                      : Y Magnetic field [mgauss] (type:int16_t)
         zmag                      : Z Magnetic field [mgauss] (type:int16_t)
         temperature               : Temperature, 0: IMU does not provide temperature values. If the IMU is at 0C it must send 1 (0.01C). [cdegC] (type:int16_t)
-        daoYaw                    : 双天线传感器1角度 [0.1deg] (type:int16_t)
+        daoYaw                    : 鍙屽ぉ绾夸紶鎰熷櫒1瑙掑害 [0.1deg] (type:int16_t)
 
         """
         return MAVLink_scaled_imu_message(time_boot_ms, xacc, yacc, zacc, xgyro, ygyro, zgyro, xmag, ymag, zmag, temperature, daoYaw)
@@ -18112,7 +18112,7 @@ class MAVLink(object):
         ymag                      : Y Magnetic field [mgauss] (type:int16_t)
         zmag                      : Z Magnetic field [mgauss] (type:int16_t)
         temperature               : Temperature, 0: IMU does not provide temperature values. If the IMU is at 0C it must send 1 (0.01C). [cdegC] (type:int16_t)
-        daoYaw                    : 双天线传感器1角度 [0.1deg] (type:int16_t)
+        daoYaw                    : 鍙屽ぉ绾夸紶鎰熷櫒1瑙掑害 [0.1deg] (type:int16_t)
 
         """
         self.send(self.scaled_imu_encode(time_boot_ms, xacc, yacc, zacc, xgyro, ygyro, zgyro, xmag, ymag, zmag, temperature, daoYaw), force_mavlink1=force_mavlink1)
