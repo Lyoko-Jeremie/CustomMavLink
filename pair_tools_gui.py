@@ -28,7 +28,7 @@ class PairToolsGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("无人机配对工具")
-        self.root.geometry("1200x800")
+        self.root.geometry("1200x900")
 
         # 配对管理器
         self.pair_manager = PairManager()
@@ -413,8 +413,8 @@ class PairToolsGUI:
                 else:
                     self.root.after(0, lambda: messagebox.showerror("失败", "配对写入失败"))
 
-            except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("错误", f"写入失败: {str(e)}"))
+            except Exception as err:
+                self.root.after(0, lambda e=err: messagebox.showerror("错误", f"写入失败: {str(e)}"))
 
         thread = threading.Thread(target=write_thread, daemon=True)
         thread.start()
@@ -454,9 +454,8 @@ class PairToolsGUI:
         def read_thread():
             try:
                 # 从地面板读取所有通道的配对信息
-                channels_data = self.pair_manager.get_channel_id_from_board(
+                channels_data = self.pair_manager.get_all_channel_id_from_board(
                     self.board_port,
-                    channel=None,  # None表示读取所有通道
                     timeout=2.0
                 )
 
@@ -478,10 +477,10 @@ class PairToolsGUI:
                 failed_count = 16 - len(channels_data)
 
                 status_msg = f"已读取 {len(channels_data)}/16 个通道 (已配对:{paired_count}, 未配对:{unpaired_count}, 读取失败:{failed_count})"
-                self.root.after(0, lambda: self._update_status_message(status_msg))
+                self.root.after(0, lambda status_msg_s=status_msg: self._update_status_message(status_msg_s))
 
-            except Exception as e:
-                self.root.after(0, lambda: self._update_status_message(
+            except Exception as err:
+                self.root.after(0, lambda e=err: self._update_status_message(
                     f"读取通道信息失败: {str(e)}", error=True
                 ))
 

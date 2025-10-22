@@ -38,6 +38,8 @@ from .custom_protocol_packet import (
     wrap_packet,
     PROTOCOL_SETADDR_PAIR,
     PROTOCOL_SETADDR_PAIR_ACK,
+    PROTOCOL_SETADDR_PAIR_REQUEST,
+    PROTOCOL_SETADDR_PAIR_REQUEST_ACK,
 )
 
 
@@ -201,23 +203,96 @@ class PairManager:
         print(f"等待配对确认超时 (>{timeout}秒)")
         return False
 
-    # TODO: 添加从地面板读取当前设置的0~15号通道无人机ID的功能
-    # 可能需要使用 PROTOCOL_SETADDR_PAIR_REQUEST 协议模式
-    def get_channel_id_from_board(self, serial_port: serial.Serial, channel: int,
-                                  timeout: float = 2.0) -> dict[int, AirplaneId]:
+    def get_all_channel_id_from_board(self, serial_port: serial.Serial, channel=0, timeout: float = 2.0) -> dict[
+        int, AirplaneId]:
         """
-        从地面板读取指定通道的无人机ID
+        从地面板读取所有通道的无人机ID
         :param serial_port: 已打开的串口对象（地面板）
-        :param channel: 通道号 0~15
         :param timeout: 超时时间（秒），默认2秒
-        :return: 无人机ID
+        :return: 字典，键为通道号(0-15)，值为AirplaneId对象
         """
-        # TODO: 实现从地面板读取通道ID的功能
 
-        # TODO 发送 SETADDR_PAIR_REQUEST 包
+        # 清空接收缓冲区和已配对通道记录
+        serial_port.reset_input_buffer()
+        self.paired_channels.clear()
 
-        # TODO 等待4个不同的 SETADDR_PAIR_REQUEST_ACK 包并解析，收集为16个通道的ID
+        # 发送请求包，要求地面板返回当前所有通道的无人机ID
+        request_packet = wrap_packet(
+            device_id=channel,  # 设备ID设为0，表示请求所有通道信息
+            data=b'',  # 无需附加数据
+            protocol_mode=PROTOCOL_SETADDR_PAIR_REQUEST
+        )
 
+        serial_port.write(request_packet)
 
+        # 等待回复
+        # 根据协议文档：16个通道共4个包，每个包会重发3次以确保数据正确接收
+        # 每个包的payload包含4个结构体，每个结构体16字节（1+5+5+5）
+        packet_parser = PacketParser()
+        start_time = time.time()
+        received_packets = set()  # 用于去重（因为每个包会重发3次）
+
+        while time.time() - start_time < timeout:
+            if serial_port.in_waiting > 0:
+                data = serial_port.read(serial_port.in_waiting)
+                packet_parser.add_data(data)
+
+                packets = packet_parser.parse_packets()
+                for packet_info, raw_data in packets:
+                    if packet_info['protocol_mode'] == PROTOCOL_SETADDR_PAIR_REQUEST_ACK:
+                        payload = packet_info['payload']
+
+                        # 每个payload包含多个16字节的结构体
+                        # 结构体格式: uint8_t id + uint8_t mtx_address[5] + uint8_t mrx_address_ack[5] + uint8_t mrx_address_p1[5]
+                        struct_size = 16  # 1 + 5 + 5 + 5
+                        num_structs = len(payload) // struct_size
+
+                        for i in range(num_structs):
+                            offset = i * struct_size
+                            struct_data = payload[offset:offset + struct_size]
+
+                            if len(struct_data) < struct_size:
+                                continue
+
+                            # 解析结构体
+                            channel_id = struct_data[0]
+                            mtx_address = struct_data[1:6]
+                            mrx_address_ack = struct_data[6:11]
+                            mrx_address_p1 = struct_data[11:16]
+
+                            # 检查通道号是否有效
+                            if not (0 <= channel_id <= 15):
+                                continue
+
+                            # 使用通道ID和地址创建唯一标识符用于去重
+                            channel_key = (channel_id, bytes(mtx_address))
+                            if channel_key in received_packets:
+                                continue  # 跳过重复的包
+
+                            received_packets.add(channel_key)
+
+                            # 创建完整的mavlink 801消息格式的raw_pack
+                            # 这里重构一个简化的包用于存储
+                            mav_temp = mavlink2.MAVLink(None)
+                            temp_msg = mavlink2.MAVLink_one_to_more_addr_xinguangfei_message(
+                                mtx_address=list(mtx_address),
+                                mrx_address_ack=list(mrx_address_ack),
+                                mrx_address_p1=list(mrx_address_p1)
+                            )
+                            raw_pack = temp_msg.pack(mav_temp)
+
+                            # 构造 AirplaneId 对象并保存到 paired_channels
+                            airplane_id = AirplaneId(
+                                raw_pack=raw_pack,
+                                mtx_address=bytes(mtx_address),
+                                mrx_address_ack=bytes(mrx_address_ack),
+                                mrx_address_p1=bytes(mrx_address_p1)
+                            )
+
+                            self.paired_channels[channel_id] = airplane_id
+                            print(f"读取通道{channel_id}配对信息: {airplane_id.addr_hex_str}")
+
+            time.sleep(0.01)  # 短暂等待避免CPU占用过高
+
+        print(f"成功读取 {len(self.paired_channels)} 个通道的配对信息")
         return self.paired_channels
-

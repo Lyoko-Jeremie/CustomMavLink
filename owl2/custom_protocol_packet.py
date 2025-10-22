@@ -47,6 +47,7 @@ PROTOCOL_COMMAND_MSG = 0        # 普通命令消息 (0x00)
 PROTOCOL_SETADDR_PAIR = 32      # 配对地址设置 (0x20)
 PROTOCOL_SETADDR_PAIR_ACK = 64  # 配对地址设置应答 (0x40)
 PROTOCOL_SETADDR_PAIR_REQUEST = 96  # 配对数据地址请求 (0x60)
+PROTOCOL_SETADDR_PAIR_REQUEST_ACK = 128  # 配对数据地址请求应答 (0x80)
 
 
 
@@ -189,7 +190,8 @@ class PacketParser:
             PROTOCOL_COMMAND_MSG,           # 0x00
             PROTOCOL_SETADDR_PAIR,          # 0x20 (32)
             PROTOCOL_SETADDR_PAIR_ACK,      # 0x40 (64)
-            PROTOCOL_SETADDR_PAIR_REQUEST   # 0x60 (96)
+            PROTOCOL_SETADDR_PAIR_REQUEST,  # 0x60 (96)
+            PROTOCOL_SETADDR_PAIR_REQUEST_ACK  # 0x80 (128)
         ]
 
         if protocol_mode not in valid_protocols:
