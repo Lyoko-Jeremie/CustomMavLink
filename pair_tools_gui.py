@@ -180,9 +180,12 @@ class PairToolsGUI:
         channel_frame = ttk.Frame(pair_frame)
         channel_frame.pack(fill=tk.X, pady=2)
         ttk.Label(channel_frame, text="目标通道:").pack(side=tk.LEFT, padx=5)
-        self.channel_spinbox = ttk.Spinbox(channel_frame, from_=0, to=15, width=10)
-        self.channel_spinbox.set('0')
-        self.channel_spinbox.pack(side=tk.LEFT, padx=5)
+        # 使用Combobox替代Spinbox，设置为只读，确保只能选择0-15
+        self.channel_combo = ttk.Combobox(channel_frame, width=10, state='readonly',
+                                          values=[str(i) for i in range(16)])  # 0-15共16个通道，转为字符串
+        self.channel_combo.set('0')
+        self.channel_combo.pack(side=tk.LEFT, padx=5)
+        ttk.Label(channel_frame, text="(可选范围: 0-15)", font=('Arial', 9)).pack(side=tk.LEFT, padx=5)
 
         # 配对按钮
         ttk.Button(pair_frame, text="写入配对到地面板", command=self._write_pair_to_board).pack(fill=tk.X, pady=5)
@@ -364,14 +367,20 @@ class PairToolsGUI:
         index = int(values[0]) - 1
         airplane_id = self.airplane_ids[index]
 
-        # 获取目标通道
+        # 获取目标通道 - 从Combobox获取，确保值在0-15范围内
         try:
-            channel = int(self.channel_spinbox.get())
-            if not (0 <= channel <= 15):
-                messagebox.showerror("错误", "通道号必须在0-15之间")
+            channel_str = self.channel_combo.get()
+            if not channel_str:
+                messagebox.showerror("错误", "请选择目标通道")
                 return
-        except ValueError:
-            messagebox.showerror("错误", "通道号必须是数字")
+
+            channel = int(channel_str)
+            # 双重验证：确保通道号在0-15之间
+            if not (0 <= channel <= 15):
+                messagebox.showerror("错误", f"通道号必须在0-15之间，当前值: {channel}")
+                return
+        except (ValueError, TypeError):
+            messagebox.showerror("错误", "通道号格式错误，请选择0-15之间的数字")
             return
 
         # 获取地面板串口
