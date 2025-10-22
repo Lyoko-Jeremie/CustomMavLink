@@ -242,7 +242,7 @@ def receive_mavlink_packet(serial_port, packet_parser=None):
 
     Args:
         serial_port: 串口对象
-        packet_parser: PacketParser实例，�����为None则创建新实例
+        packet_parser: PacketParser实例，为None则创建新实例
 
     Returns:
         包含多个数据包的列表，每个元素为字典，包含device_id、mavlink_msg和raw_packet，或空列表
