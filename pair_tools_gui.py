@@ -17,11 +17,11 @@
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox
 import serial
 import serial.tools.list_ports
 import threading
-from owl2.pair_manager import PairManager, AirplaneId
+from owl2.pair_manager import PairManager
 
 
 class PairToolsGUI:
@@ -129,6 +129,14 @@ class PairToolsGUI:
         self.drone_id_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
+        # 状态显示区域
+        status_frame = ttk.LabelFrame(parent, text="状态", padding=10)
+        status_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # 无人机读取状态
+        self.drone_status_label = ttk.Label(status_frame, text="就绪", foreground='blue', font=('Arial', 12))
+        self.drone_status_label.pack(side=tk.LEFT, padx=5)
+
         # 初始化端口列表
         self._refresh_drone_ports()
 
@@ -165,6 +173,7 @@ class PairToolsGUI:
         btn_frame.pack(fill=tk.X, pady=5)
         ttk.Button(btn_frame, text="连接", command=self._connect_board_port).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_frame, text="断开", command=self._disconnect_board_port).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="读取通道信息", command=self._refresh_board_channels).pack(side=tk.LEFT, padx=2)
 
         # 配对操作区域
         pair_frame = ttk.LabelFrame(parent, text="配对操作", padding=10)
@@ -291,7 +300,7 @@ class PairToolsGUI:
 
             # 清除旧的通道配对信息
             self.board_channels.clear()
-            self._update_channels_list()
+            # 不立即更新通道列表，等待读取完成后再更新
             self._update_board_status()
 
             messagebox.showinfo("成功", f"成功连接地面板 {port_name}\n正在读取通道配对信息...")
@@ -328,6 +337,9 @@ class PairToolsGUI:
             messagebox.showerror("错误", "串口未连接")
             return
 
+        # 显示"正在读取"提示
+        self._update_drone_status_message(f"正在从 {port_name} 读取无人机ID...", reading=True)
+
         # 在新线程中读取，避免界面冻结
         def read_thread():
             try:
@@ -339,13 +351,20 @@ class PairToolsGUI:
 
                 # 更新界面
                 self.root.after(0, self._update_drone_id_list)
+
+                # 显示成功状态
+                self.root.after(0, lambda: self._update_drone_status_message(
+                    f"成功读取无人机ID: {airplane_id.addr_hex_str}", reading=False))
+
                 self.root.after(0, lambda: messagebox.showinfo(
                     "成功",
                     f"成功读取无人机ID\nMTX地址: {airplane_id.addr_hex_str}"))
 
             except TimeoutError as e:
+                self.root.after(0, lambda: self._update_drone_status_message("读取超时", error=True))
                 self.root.after(0, lambda err=e: messagebox.showerror("超时", str(err)))
             except Exception as e:
+                self.root.after(0, lambda: self._update_drone_status_message(f"读取失败", error=True))
                 self.root.after(0, lambda err=e: messagebox.showerror("错误", f"读取失败: {str(err)}"))
 
         thread = threading.Thread(target=read_thread, daemon=True)
@@ -450,6 +469,9 @@ class PairToolsGUI:
         if not self.board_port:
             return
 
+        # 显示"正在读取"提示
+        self.root.after(0, lambda: self._update_status_message("正在读取通道配对信息...", error=False))
+
         # 在新线程中读取，避免界面冻结
         def read_thread():
             try:
@@ -504,6 +526,18 @@ class PairToolsGUI:
             # 2秒后恢复正常状态显示
             self.root.after(2000, self._update_board_status)
 
+    def _update_drone_status_message(self, message, reading=False, error=False):
+        """更新无人机状态消息（临时显示在状态标签上）"""
+        if error:
+            self.drone_status_label.config(text=message, foreground='red')
+            # 2秒后恢复就绪状态
+            self.root.after(2000, lambda: self.drone_status_label.config(text="就绪", foreground='blue'))
+        elif reading:
+            self.drone_status_label.config(text=message, foreground='orange')
+        else:
+            self.drone_status_label.config(text=message, foreground='green')
+            # 2秒后恢复就绪状态
+            self.root.after(2000, lambda: self.drone_status_label.config(text="就绪", foreground='blue'))
     def run(self):
         """运行GUI"""
         self.root.mainloop()
