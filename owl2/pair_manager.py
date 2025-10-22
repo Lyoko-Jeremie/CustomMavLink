@@ -29,12 +29,17 @@ Typedefstruct __mavlink_one_to_more_addr_xinguangfei_t {
 
 """
 import serial
+import time
 
 from .commonACFly import commonACFly_py3 as mavlink2
-from .custom_protocol_packet import send_mavlink_packet_raw, PacketParser
+from .custom_protocol_packet import (
+    send_mavlink_packet_raw,
+    PacketParser,
+    wrap_packet,
+    PROTOCOL_SETADDR_PAIR,
+    PROTOCOL_SETADDR_PAIR_ACK
+)
 
-
-# TODO __mavlink_one_to_more_addr_xinguangfei_t
 
 class AirplaneId:
     """
@@ -42,7 +47,7 @@ class AirplaneId:
     """
 
     def __init__(self, raw_pack: bytes, mtx_address: bytes, mrx_address_ack: bytes, mrx_address_p1: bytes):
-        self.raw_pack = raw_pack    # __mavlink_one_to_more_addr_xinguangfei_t raw packet
+        self.raw_pack = raw_pack    # __mavlink_one_to_more_addr_xinguangfei_t raw packet (mavlink message bytes)
         self.mtx_address = mtx_address  # type: bytes  # 5 bytes
         self.mrx_address_ack = mrx_address_ack  # type: bytes  # 5 bytes
         self.mrx_address_p1 = mrx_address_p1  # type: bytes  # 5 bytes
@@ -54,10 +59,8 @@ class AirplaneId:
 
 
 class PairManager:
-    airplane_ids: dict[str, AirplaneId]
+    airplane_ids: list[AirplaneId]
     paired_channels: dict[int, AirplaneId]
-
-    serial_port_board: serial.Serial
 
     def __init__(self):
         self.airplane_ids = []
@@ -65,48 +68,155 @@ class PairManager:
 
         pass
 
-    def _get_airplane_id_from_serial(self, serial_port: str) -> AirplaneId:
+    def _get_airplane_id_from_serial(self, serial_port_name: str, baudrate: int = 115200, timeout: float = 2.0) -> AirplaneId:
         """
         从串口读取无人机ID
-        :param serial_port: 串口号
+        :param serial_port_name: 串口号 (例如: 'COM3' 或 '/dev/ttyUSB0')
+        :param baudrate: 波特率，默认115200
+        :param timeout: 超时时间（秒），默认2秒
         :return: 无人机ID
         """
 
-        # TODO 先打开无人机端口，再发送请求报文，等待回复报文，解析出无人机ID并返回
-
+        # 创建请求消息
         request_msg = mavlink2.MAVLink_one_to_more_addr_request_xinguangfei_message(
             request=1,
             reserved=[0] * 8,
         )
 
-        # TODO 打开 serial_port
+        # 打开串口
+        ser = None
+        try:
+            ser = serial.Serial(serial_port_name, baudrate=baudrate, timeout=1.0)
+            time.sleep(0.1)  # 等待串口稳定
 
-        # 发送 request_msg
-        send_mavlink_packet_raw(serial_port, request_msg)
+            # 清空接收缓冲区
+            ser.reset_input_buffer()
 
-        # TODO 等待回复报文 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801
+            # 发送请求报文 (直接发送mavlink，不使用自定义协议封装)
+            send_mavlink_packet_raw(ser, request_msg)
 
-        # TODO 解析回复报文，构造 AirplaneId 对象并返回
-        # packet_parser = PacketParser() ??
-        # receive_mavlink_packet ??
+            # 等待回复报文 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801
+            mav_parser = mavlink2.MAVLink(None)
+            start_time = time.time()
 
-        pass
+            while time.time() - start_time < timeout:
+                if ser.in_waiting > 0:
+                    data = ser.read(1)
+                    msg = mav_parser.parse_char(data)
 
-    def _set_airplane_id_to_channel(self, serial_port: str, channel: int, airplane_id: AirplaneId) -> bool:
+                    if msg and msg.get_msgId() == mavlink2.MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI:
+                        # 解析回复报文，构造 AirplaneId 对象并返回
+                        # msg 有属性: mtx_address, mrx_address_ack, mrx_address_p1 (都是list或array)
+                        mtx_address = bytes(msg.mtx_address)
+                        mrx_address_ack = bytes(msg.mrx_address_ack)
+                        mrx_address_p1 = bytes(msg.mrx_address_p1)
+
+                        # TODO: 需要确认raw_pack是否应该是完整的mavlink消息字节
+                        # 这里暂时使用pack方法重新打包消息作为raw_pack
+                        mav_temp = mavlink2.MAVLink(None)
+                        raw_pack = msg.pack(mav_temp)
+
+                        airplane_id = AirplaneId(
+                            raw_pack=raw_pack,
+                            mtx_address=mtx_address,
+                            mrx_address_ack=mrx_address_ack,
+                            mrx_address_p1=mrx_address_p1
+                        )
+
+                        return airplane_id
+
+                time.sleep(0.01)  # 短暂等待避免CPU占用过高
+
+            raise TimeoutError(f"等待无人机ID回复超时 (>{timeout}秒)")
+
+        finally:
+            if ser and ser.is_open:
+                ser.close()
+
+    def _set_airplane_id_to_channel(self, serial_port_name: str, channel: int, airplane_id: AirplaneId,
+                                    baudrate: int = 115200, timeout: float = 2.0) -> bool:
         """
         将无人机ID写入地面板指定通道
-        :param serial_port: 串口号
+        :param serial_port_name: 串口号 (例如: 'COM3' 或 '/dev/ttyUSB0')
         :param channel: 通道号 0~15
         :param airplane_id: 无人机ID
+        :param baudrate: 波特率，默认115200
+        :param timeout: 超时时间（秒），默认2秒
         :return: 是否成功
         """
 
-        # TODO 先打开地面板端口，再发送写入报文，等待确认报文
+        if not (0 <= channel <= 15):
+            raise ValueError(f"通道号必须在0-15之间，当前值: {channel}")
 
-        # TODO 打开地面板端口
+        ser = None
+        try:
+            # 打开地面板端口
+            ser = serial.Serial(serial_port_name, baudrate=baudrate, timeout=1.0)
+            time.sleep(0.1)  # 等待串口稳定
 
-        # TODO 以 PROTOCOL_SETADDR_PAIR 模式发送 raw_pack 到地面板
+            # 清空接收缓冲区
+            ser.reset_input_buffer()
 
-        # TODO 等待确认报文 PROTOCOL_SETADDR_PAIR_ACK
+            # 以 PROTOCOL_SETADDR_PAIR 模式发送 raw_pack 到地面板
+            # 根据协议文档: 当协议识别码为 SETADDR_PAIR 时，playload 为 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801 原始包字节
+            packet = wrap_packet(
+                device_id=channel,  # 使用通道号作为设备ID
+                data=airplane_id.raw_pack,  # mavlink 801消息的原始字节
+                protocol_mode=PROTOCOL_SETADDR_PAIR
+            )
 
-        pass
+            ser.write(packet)
+
+            # 等待确认报文 PROTOCOL_SETADDR_PAIR_ACK
+            # 根据协议文档: 当协议识别码为 SETADDR_PAIR_ACK 时，playload 为 uint8_t ack (0:失败，1:成功)
+            packet_parser = PacketParser()
+            start_time = time.time()
+
+            while time.time() - start_time < timeout:
+                if ser.in_waiting > 0:
+                    data = ser.read(ser.in_waiting)
+                    packet_parser.add_data(data)
+
+                    packets = packet_parser.parse_packets()
+                    for packet_info, raw_data in packets:
+                        if packet_info['protocol_mode'] == PROTOCOL_SETADDR_PAIR_ACK:
+                            # 检查ACK状态
+                            payload = packet_info['payload']
+                            if len(payload) > 0:
+                                ack_status = payload[0]
+                                if ack_status == 1:
+                                    print(f"配对成功: 通道{channel} <- {airplane_id.addr_hex_str}")
+                                    return True
+                                else:
+                                    print(f"配对失败: 通道{channel}, ACK状态={ack_status}")
+                                    return False
+
+                time.sleep(0.01)  # 短暂等待避免CPU占用过高
+
+            # 超时未收到确认
+            print(f"等待配对确认超时 (>{timeout}秒)")
+            return False
+
+        except Exception as e:
+            print(f"配对过程出错: {e}")
+            return False
+
+        finally:
+            if ser and ser.is_open:
+                ser.close()
+
+    # TODO: 添加从地面板读取当前设置的0~15号通道无人机ID的功能
+    # 可能需要使用 PROTOCOL_SETADDR_PAIR_REQUEST 协议模式
+    def _get_channel_id_from_board(self, serial_port_name: str, channel: int,
+                                   baudrate: int = 115200, timeout: float = 2.0) -> AirplaneId:
+        """
+        从地面板读取指定通道的无人机ID
+        :param serial_port_name: 串口号
+        :param channel: 通道号 0~15
+        :param baudrate: 波特率
+        :param timeout: 超时时间
+        :return: 无人机ID
+        """
+        # TODO: 实现从地面板读取通道ID的功能
+        # 需要明确PROTOCOL_SETADDR_PAIR_REQUEST的具体使用方式和回复格式
+        raise NotImplementedError("从地面板读取通道ID功能尚未实现")
