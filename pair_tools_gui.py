@@ -90,7 +90,7 @@ class PairToolsGUI:
         baud_frame.pack(fill=tk.X, pady=2)
         ttk.Label(baud_frame, text="波特率:").pack(side=tk.LEFT, padx=5)
         self.drone_baud_combo = ttk.Combobox(baud_frame, width=15, state='readonly',
-                                              values=['9600', '19200', '38400', '57600', '115200'])
+                                             values=['9600', '19200', '38400', '57600', '115200'])
         self.drone_baud_combo.set('115200')
         self.drone_baud_combo.pack(side=tk.LEFT, padx=5)
 
@@ -156,7 +156,7 @@ class PairToolsGUI:
         baud_frame.pack(fill=tk.X, pady=2)
         ttk.Label(baud_frame, text="波特率:").pack(side=tk.LEFT, padx=5)
         self.board_baud_combo = ttk.Combobox(baud_frame, width=15, state='readonly',
-                                              values=['9600', '19200', '38400', '57600', '115200'])
+                                             values=['9600', '19200', '38400', '57600', '115200'])
         self.board_baud_combo.set('115200')
         self.board_baud_combo.pack(side=tk.LEFT, padx=5)
 
@@ -339,13 +339,14 @@ class PairToolsGUI:
 
                 # 更新界面
                 self.root.after(0, self._update_drone_id_list)
-                self.root.after(0, lambda: messagebox.showinfo("成功",
+                self.root.after(0, lambda: messagebox.showinfo(
+                    "成功",
                     f"成功读取无人机ID\nMTX地址: {airplane_id.addr_hex_str}"))
 
             except TimeoutError as e:
-                self.root.after(0, lambda: messagebox.showerror("超时", str(e)))
+                self.root.after(0, lambda err=e: messagebox.showerror("超时", str(err)))
             except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("错误", f"读取失败: {str(e)}"))
+                self.root.after(0, lambda err=e: messagebox.showerror("错误", f"读取失败: {str(err)}"))
 
         thread = threading.Thread(target=read_thread, daemon=True)
         thread.start()
@@ -408,7 +409,7 @@ class PairToolsGUI:
                     self.board_channels[channel] = airplane_id
                     self.root.after(0, self._update_channels_list)
                     self.root.after(0, lambda: messagebox.showinfo("成功",
-                        f"成功写入配对\n通道: {channel}\nMTX地址: {airplane_id.addr_hex_str}"))
+                                                                   f"成功写入配对\n通道: {channel}\nMTX地址: {airplane_id.addr_hex_str}"))
                 else:
                     self.root.after(0, lambda: messagebox.showerror("失败", "配对写入失败"))
 
@@ -427,13 +428,17 @@ class PairToolsGUI:
         # 添加所有通道
         for channel in range(16):
             if channel in self.board_channels:
-                addr = self.board_channels[channel].addr_hex_str
+                airplane_id = self.board_channels[channel]
+                if airplane_id is None:
+                    addr = "未配对"
+                else:
+                    addr = airplane_id.addr_hex_str
             else:
-                addr = "未配对"
+                addr = "读取失败"
             self.channels_tree.insert('', tk.END, values=(channel, addr))
 
     def _update_board_status(self):
-        """更新地面板连���状态显示"""
+        """更新地面板连接状态显示"""
         if self.board_port and self.board_port_name:
             status_text = f"已连接: {self.board_port_name}"
             self.board_status_label.config(text=status_text, foreground='green')
@@ -456,17 +461,24 @@ class PairToolsGUI:
                 )
 
                 # 更新内部数据
-                self.board_channels.clear()
-                self.board_channels.update(channels_data)
+                # channels_data中:
+                # - 键存在且值为None: 该通道未配对
+                # - 键存在且值为AirplaneId: 该通道已配对
+                # - 键不存在: 该通道读取失败
+
+                # 直接使用返回的字典替换当前数据
+                self.board_channels = channels_data
 
                 # 更新界面显示
                 self.root.after(0, self._update_channels_list)
 
-                # 显示读取结果
-                paired_count = len(channels_data)
-                self.root.after(0, lambda: self._update_status_message(
-                    f"已读取 {paired_count} 个通道的配对信息"
-                ))
+                # 统计并显示读取结果
+                paired_count = sum(1 for v in channels_data.values() if v is not None)
+                unpaired_count = sum(1 for v in channels_data.values() if v is None)
+                failed_count = 16 - len(channels_data)
+
+                status_msg = f"已读取 {len(channels_data)}/16 个通道 (已配对:{paired_count}, 未配对:{unpaired_count}, 读取失败:{failed_count})"
+                self.root.after(0, lambda: self._update_status_message(status_msg))
 
             except Exception as e:
                 self.root.after(0, lambda: self._update_status_message(
