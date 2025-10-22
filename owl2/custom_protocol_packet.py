@@ -6,16 +6,37 @@ import struct
 from .commonACFly import commonACFly_py3 as mavlink2
 
 # 封装包
-# 帧头1	帧头2	ID	                            数据长度	    PLAYLOAD(data)	    uint8_t校验和	帧尾
+# 帧头1	帧头2	ID	                            数据长度	    payload(data)	    uint8_t校验和	帧尾
 # 0xAA	0xBB	协议识别码+0-15（用于判断设备号） 	max值（58）	max值（58个字节）		checksum        0xCC
 #
 # 备注：id为 0-15个天空端的设备ID + 协议识别码(以高位0xF0区域来表示)
-#       协议识别码包含 COMMAND_MSG(0)、SETADDR_PAIR(32)、SETADDR_PAIR_ACK(64)、SETADDR_PAIR_REQUEST(96)
-#       当协议识别码为 COMMAND_MSG 时：
-#       playload 为天空端设备回传的信息或者地面站发送的cmd，地面站与天空端之间采用mavlink数据传输。先将基本数据打包成mavlink，打包后的mavlink数据放到playload
-#       当协议识别码为 SETADDR_PAIR 时： playload 为 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801 原始包字节
-#       当协议识别码为 SETADDR_PAIR_ACK 时： playload 为 uint8_t ack (0:失败，1:成功)
+#       协议识别码包含
+#       COMMAND_MSG(0)、
+#       SETADDR_PAIR(32)、
+#       SETADDR_PAIR_ACK(64)、
+#       SETADDR_PAIR_REQUEST(96)、
+#       SETADDR_PAIR_REQUEST_ACK(128)、
 #
+#
+#       当协议识别码为 COMMAND_MSG 时：
+#       payload 为天空端设备回传的信息或者地面站发送的cmd，地面站与天空端之间采用mavlink数据传输。先将基本数据打包成mavlink，打包后的mavlink数据放到payload
+#       当协议识别码为 SETADDR_PAIR 时： payload 为 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801 原始包字节
+#       当协议识别码为 SETADDR_PAIR_ACK 时： payload 为 uint8_t ack (0:失败，1:成功)
+#       当协议识别码为 SETADDR_PAIR_REQUEST 时： payload 为 空， 0字节长。
+#       当协议识别码为 SETADDR_PAIR_REQUEST_ACK 时： payload 中为读取到的地址数据，结构体如下
+#
+
+"""
+SETADDR_PAIR_REQUEST_ACK 的每个 payload 中包含四个连续的如下的结构体，每个结构体对应4个通道，16个通道共4个包，每个包会重发3次以确保数据正确接收
+
+typedef struct {
+ uint8 t id;
+ uint8_t mtx_address[5];
+ uint8_t mrx_address_ack[5];
+ uint8_t mrx_address_p1[5];
+} setup addr t;
+"""
+
 HEADER1 = 0xAA
 HEADER2 = 0xBB
 TAIL = 0xCC
@@ -26,6 +47,7 @@ PROTOCOL_COMMAND_MSG = 0        # 普通命令消息 (0x00)
 PROTOCOL_SETADDR_PAIR = 32      # 配对地址设置 (0x20)
 PROTOCOL_SETADDR_PAIR_ACK = 64  # 配对地址设置应答 (0x40)
 PROTOCOL_SETADDR_PAIR_REQUEST = 96  # 配对数据地址请求 (0x60)
+
 
 
 def wrap_packet(device_id: int, data: bytes, protocol_mode: int = PROTOCOL_COMMAND_MSG) -> bytes:
@@ -70,11 +92,11 @@ def wrap_packet(device_id: int, data: bytes, protocol_mode: int = PROTOCOL_COMMA
 
 
 # 解析包
-# 帧头1	帧头2	ID	                    数据长度	    PLAYLOAD(data)	    uint8_t校验和	帧尾
+# 帧头1	帧头2	ID	                    数据长度	    payload(data)	    uint8_t校验和	帧尾
 # 0xAA	0xBB	0-15（用于判断设备号） 	max值（58）	max值（58个字节）		checksum        0xCC
 #
 # 备注：id为0-15个天空端的设备ID
-#       playload为天空端设备回传的信息或者地面站发送的cmd，地面站与天空端之间采用mavlink数据传输。先将基本数据打包成mavlink，打包后的mavlink数据放到playload
+#       payload为天空端设备回传的信息或者地面站发送的cmd，地面站与天空端之间采用mavlink数据传输。先将基本数据打包成mavlink，打包后的mavlink数据放到payload
 class PacketParser:
     """数据包解析器，支持缓存和包切割"""
 

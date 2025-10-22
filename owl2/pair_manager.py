@@ -162,7 +162,7 @@ class PairManager:
         serial_port.reset_input_buffer()
 
         # 以 PROTOCOL_SETADDR_PAIR 模式发送 raw_pack 到地面板
-        # 根据协议文档: 当协议识别码为 SETADDR_PAIR 时，playload 为 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801 原始包字节
+        # 根据协议文档: 当协议识别码为 SETADDR_PAIR 时，payload 为 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801 原始包字节
         packet = wrap_packet(
             device_id=channel,  # 使用通道号作为设备ID
             data=airplane_id.raw_pack,  # mavlink 801消息的原始字节
@@ -172,7 +172,7 @@ class PairManager:
         serial_port.write(packet)
 
         # 等待确认报文 PROTOCOL_SETADDR_PAIR_ACK
-        # 根据协议文档: 当协议识别码为 SETADDR_PAIR_ACK 时，playload 为 uint8_t ack (0:失败，1:成功)
+        # 根据协议文档: 当协议识别码为 SETADDR_PAIR_ACK 时，payload 为 uint8_t ack (0:失败，1:成功)
         packet_parser = PacketParser()
         start_time = time.time()
 
@@ -213,6 +213,11 @@ class PairManager:
         :return: 无人机ID
         """
         # TODO: 实现从地面板读取通道ID的功能
-        # 需要明确PROTOCOL_SETADDR_PAIR_REQUEST的具体使用方式和回复格式
+
+        # TODO 发送 SETADDR_PAIR_REQUEST 包
+
+        # TODO 等待4个不同的 SETADDR_PAIR_REQUEST_ACK 包并解析，收集为16个通道的ID
+
+
         return self.paired_channels
 
