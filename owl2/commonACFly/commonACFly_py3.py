@@ -1914,13 +1914,22 @@ enums["MAV_CMD"][278].param[6] = """Max detection value of color block B channel
 enums["MAV_CMD"][278].param[7] = """Empty"""
 MAV_CMD_EXT_DRONE_GOTO_CMD = 279
 enums["MAV_CMD"][279] = EnumEntry("MAV_CMD_EXT_DRONE_GOTO_CMD", """xinguangfei ext goto target loc""")
-enums["MAV_CMD"][279].param[1] = """null"""
-enums["MAV_CMD"][279].param[1] = """null"""
-enums["MAV_CMD"][279].param[1] = """null"""
+enums["MAV_CMD"][279].param[1] = """0:fllowline 1:lock apritag"""
+enums["MAV_CMD"][279].param[2] = """null"""
+enums["MAV_CMD"][279].param[3] = """null"""
 enums["MAV_CMD"][279].param[4] = """Empty"""
 enums["MAV_CMD"][279].param[5] = """Empty"""
 enums["MAV_CMD"][279].param[6] = """Empty"""
 enums["MAV_CMD"][279].param[7] = """Empty"""
+MAV_CMD_EXT_DRONE_OPEMMV_CMD = 280
+enums["MAV_CMD"][280] = EnumEntry("MAV_CMD_EXT_DRONE_OPEMMV_CMD", """xinguangfei ext goto target loc""")
+enums["MAV_CMD"][280].param[1] = """null"""
+enums["MAV_CMD"][280].param[2] = """Empty"""
+enums["MAV_CMD"][280].param[3] = """Empty"""
+enums["MAV_CMD"][280].param[4] = """Empty"""
+enums["MAV_CMD"][280].param[5] = """Empty"""
+enums["MAV_CMD"][280].param[6] = """Empty"""
+enums["MAV_CMD"][280].param[7] = """Empty"""
 MAV_CMD_EXT_DRONE_TOTAL = 290
 enums["MAV_CMD"][290] = EnumEntry("MAV_CMD_EXT_DRONE_TOTAL", """xinguangfei ext set mode""")
 enums["MAV_CMD"][290].param[1] = """Empty"""
@@ -5602,7 +5611,8 @@ MAVLINK_MSG_ID_REQUEST_EVENT = 412
 MAVLINK_MSG_ID_RESPONSE_EVENT_ERROR = 413
 MAVLINK_MSG_ID_COMPONENT_EXTENSION43 = 500
 MAVLINK_MSG_ID_BATTERY_STATUS_ACFLY = 602
-MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI = 800
+MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_REQUEST_XINGUANGFEI = 800
+MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI = 801
 MAVLINK_MSG_ID_WHEEL_DISTANCE = 9000
 MAVLINK_MSG_ID_WINCH_STATUS = 9005
 MAVLINK_MSG_ID_OPEN_DRONE_ID_BASIC_ID = 12900
@@ -16156,6 +16166,45 @@ class MAVLink_battery_status_acfly_message(MAVLink_message):
 setattr(MAVLink_battery_status_acfly_message, "name", mavlink_msg_deprecated_name_property())
 
 
+class MAVLink_one_to_more_addr_request_xinguangfei_message(MAVLink_message):
+    """
+    xinguangfei pair code request
+    """
+
+    id = MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_REQUEST_XINGUANGFEI
+    msgname = "ONE_TO_MORE_ADDR_REQUEST_XINGUANGFEI"
+    fieldnames = ["request", "reserved"]
+    ordered_fieldnames = ["request", "reserved"]
+    fieldtypes = ["uint8_t", "uint8_t"]
+    fielddisplays_by_name: Dict[str, str] = {}
+    fieldenums_by_name: Dict[str, str] = {}
+    fieldunits_by_name: Dict[str, str] = {}
+    native_format = bytearray(b"<BB")
+    orders = [0, 1]
+    lengths = [1, 8]
+    array_lengths = [0, 8]
+    crc_extra = 31
+    unpacker = struct.Struct("<B8B")
+    instance_field = "reserved"
+    instance_offset = 1
+
+    def __init__(self, request: int, reserved: Sequence[int]):
+        MAVLink_message.__init__(self, MAVLink_one_to_more_addr_request_xinguangfei_message.id, MAVLink_one_to_more_addr_request_xinguangfei_message.msgname)
+        self._fieldnames = MAVLink_one_to_more_addr_request_xinguangfei_message.fieldnames
+        self._instance_field = MAVLink_one_to_more_addr_request_xinguangfei_message.instance_field
+        self._instance_offset = MAVLink_one_to_more_addr_request_xinguangfei_message.instance_offset
+        self.request = request
+        self.reserved = reserved
+
+    def pack(self, mav: "MAVLink", force_mavlink1: bool = False) -> bytes:
+        return self._pack(mav, self.crc_extra, self.unpacker.pack(self.request, self.reserved[0], self.reserved[1], self.reserved[2], self.reserved[3], self.reserved[4], self.reserved[5], self.reserved[6], self.reserved[7]), force_mavlink1=force_mavlink1)
+
+
+# Define name on the class for backwards compatibility (it is now msgname).
+# Done with setattr to hide the class variable from mypy.
+setattr(MAVLink_one_to_more_addr_request_xinguangfei_message, "name", mavlink_msg_deprecated_name_property())
+
+
 class MAVLink_one_to_more_addr_xinguangfei_message(MAVLink_message):
     """
     Battery information. Updates GCS with flight controller battery
@@ -17087,6 +17136,7 @@ mavlink_map: Dict[int, Type[MAVLink_message]] = {
     MAVLINK_MSG_ID_RESPONSE_EVENT_ERROR: MAVLink_response_event_error_message,
     MAVLINK_MSG_ID_COMPONENT_EXTENSION43: MAVLink_component_extension43_message,
     MAVLINK_MSG_ID_BATTERY_STATUS_ACFLY: MAVLink_battery_status_acfly_message,
+    MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_REQUEST_XINGUANGFEI: MAVLink_one_to_more_addr_request_xinguangfei_message,
     MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI: MAVLink_one_to_more_addr_xinguangfei_message,
     MAVLINK_MSG_ID_WHEEL_DISTANCE: MAVLink_wheel_distance_message,
     MAVLINK_MSG_ID_WINCH_STATUS: MAVLink_winch_status_message,
@@ -25594,6 +25644,26 @@ class MAVLink(object):
 
         """
         self.send(self.battery_status_acfly_encode(id, health, remaining_percentage, cell_count, fault_bitmask, temperature, cycle_count, current, voltage, capacity, sequence_num, voltages), force_mavlink1=force_mavlink1)
+
+    def one_to_more_addr_request_xinguangfei_encode(self, request: int, reserved: Sequence[int]) -> MAVLink_one_to_more_addr_request_xinguangfei_message:
+        """
+        xinguangfei pair code request
+
+        request                   : request (type:uint8_t)
+        reserved                  : reserved (type:uint8_t)
+
+        """
+        return MAVLink_one_to_more_addr_request_xinguangfei_message(request, reserved)
+
+    def one_to_more_addr_request_xinguangfei_send(self, request: int, reserved: Sequence[int], force_mavlink1: bool = False) -> None:
+        """
+        xinguangfei pair code request
+
+        request                   : request (type:uint8_t)
+        reserved                  : reserved (type:uint8_t)
+
+        """
+        self.send(self.one_to_more_addr_request_xinguangfei_encode(request, reserved), force_mavlink1=force_mavlink1)
 
     def one_to_more_addr_xinguangfei_encode(self, mtx_address: Sequence[int], mrx_address_ack: Sequence[int], mrx_address_p1: Sequence[int]) -> MAVLink_one_to_more_addr_xinguangfei_message:
         """
