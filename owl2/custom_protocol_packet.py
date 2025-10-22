@@ -9,8 +9,8 @@ from .commonACFly import commonACFly_py3 as mavlink2
 # 帧头1	帧头2	ID	                            数据长度	    PLAYLOAD(data)	    uint8_t校验和	帧尾
 # 0xAA	0xBB	协议识别码+0-15（用于判断设备号） 	max值（58）	max值（58个字节）		checksum        0xCC
 #
-# 备注：id为 0-15个天空端的设备ID + 协议识别码
-#       协议识别码包含 COMMAND_MSG(0)、SETADDR_PAIR(50)、SETADDR_PAIR_ACK(50) 三个附加值
+# 备注：id为 0-15个天空端的设备ID + 协议识别码(以高位0xF0区域来表示)
+#       协议识别码包含 COMMAND_MSG(0)、SETADDR_PAIR(32)、SETADDR_PAIR_ACK(64)、SETADDR_PAIR_REQUEST(96)
 #       当协议识别码为 COMMAND_MSG 时：
 #       playload 为天空端设备回传的信息或者地面站发送的cmd，地面站与天空端之间采用mavlink数据传输。先将基本数据打包成mavlink，打包后的mavlink数据放到playload
 #       当协议识别码为 SETADDR_PAIR 时： playload 为 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801 原始包字节
@@ -21,11 +21,25 @@ HEADER2 = 0xBB
 TAIL = 0xCC
 MAX_PAYLOAD_SIZE = 58
 
+# 协议识别码（以高位0xF0区域来表示）
+PROTOCOL_COMMAND_MSG = 0        # 普通命令消息 (0x00)
+PROTOCOL_SETADDR_PAIR = 32      # 配对地址设置 (0x20)
+PROTOCOL_SETADDR_PAIR_ACK = 64  # 配对地址设置应答 (0x40)
+PROTOCOL_SETADDR_PAIR_REQUEST = 96  # 配对地址请求 (0x60)
 
-def wrap_packet(device_id: int, data: bytes) -> bytes:
+
+def wrap_packet(device_id: int, data: bytes, protocol_mode: int = PROTOCOL_COMMAND_MSG) -> bytes:
     """
     封装数据包
     格式: 0xAA 0xBB ID 数据长度 PAYLOAD 校验和 0xCC
+
+    Args:
+        device_id: 设备ID (0-15)
+        data: 要发送的数据
+        protocol_mode: 协议识别码 (PROTOCOL_COMMAND_MSG/PROTOCOL_SETADDR_PAIR/PROTOCOL_SETADDR_PAIR_ACK)
+
+    Returns:
+        封装后的完整数据包
     """
 
     # print('wrap_packet data', data)
@@ -38,8 +52,11 @@ def wrap_packet(device_id: int, data: bytes) -> bytes:
 
     data_length = len(data)
 
+    # ID字段 = 协议识别码 + 设备ID (0-15)
+    id_field = protocol_mode + device_id
+
     # 构建包体（不包括校验和和帧尾）
-    packet_body = struct.pack('BBB', HEADER1, HEADER2, device_id) + struct.pack('B', data_length) + data
+    packet_body = struct.pack('BBB', HEADER1, HEADER2, id_field) + struct.pack('B', data_length) + data
 
     # 计算校验和（对包体所有字节求和）
     checksum = sum(packet_body) & 0xFF
@@ -136,11 +153,29 @@ class PacketParser:
             raise ValueError("Invalid header")
 
         # 解析字段
-        device_id = packet[2]
+        id_field = packet[2]
         data_length = packet[3]
 
+        # 从ID字段中提取协议识别码和设备ID
+        # ID字段 = 协议识别码(高4位) + 设备ID (低4位0-15)
+        # 使用位运算提取: 协议识别码 = id_field & 0xF0, 设备ID = id_field & 0x0F
+        protocol_mode = id_field & 0xF0  # 提取高4位
+        device_id = id_field & 0x0F      # 提取低4位
+
+        # 验证协议识别码是否合法（支持未来扩展）
+        valid_protocols = [
+            PROTOCOL_COMMAND_MSG,           # 0x00
+            PROTOCOL_SETADDR_PAIR,          # 0x20 (32)
+            PROTOCOL_SETADDR_PAIR_ACK,      # 0x40 (64)
+            PROTOCOL_SETADDR_PAIR_REQUEST   # 0x60 (96)
+        ]
+
+        if protocol_mode not in valid_protocols:
+            # 如果是未知协议，仍然解析但给出警告
+            print(f"Warning: Unknown protocol mode: {protocol_mode} (0x{protocol_mode:02X})")
+
         if not (0 <= device_id <= 15):
-            raise ValueError(f"Invalid device ID: {device_id}")
+            raise ValueError(f"Invalid device ID: {device_id} (id_field=0x{id_field:02X}, protocol_mode=0x{protocol_mode:02X})")
 
         if data_length > MAX_PAYLOAD_SIZE:
             raise ValueError(f"Data length {data_length} exceeds maximum {MAX_PAYLOAD_SIZE}")
@@ -167,6 +202,7 @@ class PacketParser:
 
         return {
             'device_id': device_id,
+            'protocol_mode': protocol_mode,
             'payload': payload
         }
 
@@ -206,7 +242,7 @@ def receive_mavlink_packet(serial_port, packet_parser=None):
 
     Args:
         serial_port: 串口对象
-        packet_parser: PacketParser实例，���果为None则创建新实例
+        packet_parser: PacketParser实例，�����为None则创建新实例
 
     Returns:
         包含多个数据包的列表，每个元素为字典，包含device_id、mavlink_msg和raw_packet，或空列表
