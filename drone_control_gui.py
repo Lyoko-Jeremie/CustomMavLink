@@ -23,7 +23,7 @@ class DroneControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("无人机控制调试界面")
-        self.root.geometry("1400x850")  # 增加窗口宽度以适应三栏布局
+        self.root.geometry("1400x900")  # 增加窗口宽度以适应三栏布局
 
         self.manager = None
         self.drone = None
@@ -74,7 +74,7 @@ class DroneControlGUI:
 
         tk.Label(com_frame, text="波特率:").pack(side="left", padx=5)
         self.baudrate_entry = tk.Entry(com_frame, width=10)
-        self.baudrate_entry.insert(0, "115200")
+        self.baudrate_entry.insert(0, "921600")
         self.baudrate_entry.pack(side="left", padx=5)
 
         # 无人机ID输入
@@ -973,18 +973,30 @@ class DroneControlGUI:
 
         self.run_in_thread(_disconnect)
 
+    def _cleanup_manager(self):
+        """清理管理器资源（同步执行）"""
+        if self.manager:
+            try:
+                logger.info("正在停止管理器...")
+                self.manager.stop()
+                logger.info("✓ 管理器已停止")
+            except Exception as e:
+                logger.error(f"停止管理器时出错: {e}")
+            finally:
+                self.manager = None
+                self.drone = None
+
     def on_closing(self):
         """关闭窗口时的处理"""
-        if self.manager:
-            self.log_message("正在停止管理器...")
-            try:
-                self.manager.stop()
-                self.log_message("✓ 管理器已停止")
-            except Exception as e:
-                self.log_message(f"停止管理器时出错: {e}", "ERROR")
+        # 同步清理资源，确保在窗口销毁前完成
+        self._cleanup_manager()
 
+        # 销毁窗口
         self.root.destroy()
-        exit(0)
+
+        # 强制退出程序（确保所有线程都结束）
+        import os
+        os._exit(0)
 
 
 def main():
