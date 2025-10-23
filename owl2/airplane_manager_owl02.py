@@ -95,12 +95,18 @@ class AirplaneManagerOwl02:
         """启动数据接收线程"""
 
         def receive_task():
-            while not self._stop_event.is_set() and self.serial_port and self.serial_port.is_open:
-                try:
-                    self._process_serial_data()
-                except Exception as e:
-                    logger.error(f"Error processing serial data: {e}")
-                time.sleep(0.01)  # 避免CPU占用过高
+            try:
+                while not self._stop_event.is_set() and self.serial_port and self.serial_port.is_open:
+                    try:
+                        self._process_serial_data()
+                    except Exception as e:
+                        print('=====================receive_task stop=================================')
+                        logger.error(f"Error processing serial data: {e}")
+                    time.sleep(0.01)  # 避免CPU占用过高
+                    pass
+            except Exception as e:
+                print(f"Error receiving heartbeat: {e}")
+            print('+++++++++++++++++++++++++++++++++++Receive thread exiting+++++++++++++++++++++++++++')
 
         self.receive_thread = threading.Thread(target=receive_task, daemon=True)
         self.receive_thread.start()

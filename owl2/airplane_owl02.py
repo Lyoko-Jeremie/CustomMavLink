@@ -19,18 +19,19 @@ logger = logging.getLogger(__name__)
 
 # 命令应答结果常量（根据协议文档）
 RECEIVE_COMMAND = 1  # 接收到命令
-FINISH_COMMAND = 2   # 完成动作
-COMMAND_ERROR = 3    # 拒绝执行指令
+FINISH_COMMAND = 2  # 完成动作
+COMMAND_ERROR = 3  # 拒绝执行指令
 
 
 class CommandStatus:
     """命令状态追踪"""
+
     def __init__(self, command: int, sequence: int, timestamp: int):
         self.command = command
         self.sequence = sequence  # 命令序列号，用于区分同一命令的不同调用
         self.timestamp = timestamp  # Param7时间戳（整数毫秒），用于避免重复包
         self.receive_count = 0  # 接收应答计数
-        self.finish_count = 0   # 完成应答计数
+        self.finish_count = 0  # 完成应答计数
         self.is_received = False
         self.is_finished = False
         self.is_error = False
@@ -52,7 +53,7 @@ class AirplaneOwl02(IAirplane):
 
         # 命令状态追踪 - 使用 (command, sequence) 作为键
         self.command_status: Dict[tuple, CommandStatus] = {}
-        self.command_lock = threading.Lock()
+        self.command_lock = threading.RLock()
         self.command_sequence = 0  # 命令序列号生成器
 
         # 新增：当前正在执行的命令序列号（用于指令队列模式）
@@ -149,8 +150,8 @@ class AirplaneOwl02(IAirplane):
 
     # TODO  bug: 在前一个包的重试过程中，如果再发一次同一个指令，会导致后续任何指令都无法发出
     def _send_command_with_retry(self, command: int, param1=0, param2=0, param3=0,
-                                  param4=0, param5=0, param6=0, param7=0,
-                                  wait_for_finish=False, timeout=5.0, async_mode=None):
+                                 param4=0, param5=0, param6=0, param7=0,
+                                 wait_for_finish=False, timeout=5.0, async_mode=None):
         """
         发送命令并自动重试（支持异步非阻塞模式）
         :param command: 命令ID
@@ -188,8 +189,10 @@ class AirplaneOwl02(IAirplane):
                 # 检查旧命令是否还在执行中（未收到ACK）
                 if old_status and not old_status.is_received and not old_status.is_finished and not old_status.is_stopped:
                     old_status.is_stopped = True
-                    print(f"⚠️ 警告：新指令 {command}(seq={sequence}, ts={timestamp}) 到来时，上一个指令 {old_status.command}(seq={old_status.sequence}, ts={old_status.timestamp}) 仍未发送成功，停止重试上一个指令")
-                    logger.warning(f"Queue mode: Stopped command {old_status.command} seq={old_status.sequence} ts={old_status.timestamp} for new command {command} seq={sequence} ts={timestamp}")
+                    print(
+                        f"⚠️ 警告：新指令 {command}(seq={sequence}, ts={timestamp}) 到来时，上一个指令 {old_status.command}(seq={old_status.sequence}, ts={old_status.timestamp}) 仍未发送成功，停止重试上一个指令")
+                    logger.warning(
+                        f"Queue mode: Stopped command {old_status.command} seq={old_status.sequence} ts={old_status.timestamp} for new command {command} seq={sequence} ts={timestamp}")
 
             # 更新当前活动命令
             self.current_active_command_key = key
@@ -223,7 +226,8 @@ class AirplaneOwl02(IAirplane):
                     param7=timestamp  # 使用时间戳作为param7
                 )
                 self.send_msg(cmd)
-                logger.debug(f"Sent command {command} seq={sequence} ts={timestamp} to device {self.target_channel_id} (attempt {retry_count + 1}/{self.max_retries})")
+                logger.debug(
+                    f"Sent command {command} seq={sequence} ts={timestamp} to device {self.target_channel_id} (attempt {retry_count + 1}/{self.max_retries})")
 
                 # 等待应答
                 wait_start = time.time()
@@ -232,17 +236,20 @@ class AirplaneOwl02(IAirplane):
                         status = self.command_status.get(key)
                         if status:
                             if status.is_error:
-                                logger.error(f"Command {command} seq={sequence} ts={timestamp} rejected by device {self.target_channel_id}")
+                                logger.error(
+                                    f"Command {command} seq={sequence} ts={timestamp} rejected by device {self.target_channel_id}")
                                 self._cleanup_active_command(key)
                                 return False
 
                             if status.is_received and not wait_for_finish:
-                                logger.info(f"Command {command} seq={sequence} ts={timestamp} received by device {self.target_channel_id}")
+                                logger.info(
+                                    f"Command {command} seq={sequence} ts={timestamp} received by device {self.target_channel_id}")
                                 self._cleanup_active_command(key)
                                 return True
 
                             if status.is_finished:
-                                logger.info(f"Command {command} seq={sequence} ts={timestamp} finished by device {self.target_channel_id}")
+                                logger.info(
+                                    f"Command {command} seq={sequence} ts={timestamp} finished by device {self.target_channel_id}")
                                 self._cleanup_active_command(key)
                                 return True
 
@@ -262,7 +269,8 @@ class AirplaneOwl02(IAirplane):
 
                 retry_count += 1
                 if retry_count < self.max_retries:
-                    logger.warning(f"Command {command} seq={sequence} ts={timestamp} no response, retrying... ({retry_count}/{self.max_retries})")
+                    logger.warning(
+                        f"Command {command} seq={sequence} ts={timestamp} no response, retrying... ({retry_count}/{self.max_retries})")
 
             logger.error(f"Command {command} seq={sequence} ts={timestamp} failed after {self.max_retries} retries")
             self._cleanup_active_command(key)
@@ -379,7 +387,11 @@ class AirplaneOwl02(IAirplane):
         # 限制在23位范围内，与发送时保持一致
         ack_timestamp = int(message.result_param2) & 0x7FFFFF if hasattr(message, 'result_param2') else None
 
+        print('ack_timestamp', ack_timestamp)
+
         with self.command_lock:
+            print('with self.command_lock')
+
             # 根据命令ID和时间戳精确匹配命令实例
             updated = False
             for key, status in list(self.command_status.items()):
@@ -395,25 +407,28 @@ class AirplaneOwl02(IAirplane):
                         status.receive_count += 1
                         if status.receive_count >= 1:
                             status.is_received = True
-                        logger.debug(f"Command {command} seq={status.sequence} ts={status.timestamp} received ACK ({status.receive_count}/3)")
+                        logger.debug(
+                            f"Command {command} seq={status.sequence} ts={status.timestamp} received ACK ({status.receive_count}/3)")
                         updated = True
 
                     elif result == FINISH_COMMAND:
                         status.finish_count += 1
                         if status.finish_count >= 1:
                             status.is_finished = True
-                        logger.info(f"Command {command} seq={status.sequence} ts={status.timestamp} finished ACK ({status.finish_count}/3)")
+                        logger.info(
+                            f"Command {command} seq={status.sequence} ts={status.timestamp} finished ACK ({status.finish_count}/3)")
                         updated = True
 
                     elif result == COMMAND_ERROR:
                         status.is_error = True
-                        logger.error(f"Command {command} seq={status.sequence} ts={status.timestamp} error from device {self.target_channel_id}")
+                        logger.error(
+                            f"Command {command} seq={status.sequence} ts={status.timestamp} error from device {self.target_channel_id}")
                         updated = True
 
             # 清理超过10秒的旧命令状态
             current_time = time.time()
             keys_to_remove = [k for k, v in self.command_status.items()
-                            if current_time - v.create_time > 10.0]
+                              if current_time - v.create_time > 10.0]
             for k in keys_to_remove:
                 del self.command_status[k]
 
@@ -451,6 +466,7 @@ class AirplaneOwl02(IAirplane):
 
             mavlink2.MAVLINK_MSG_ID_SYSTEM_TIME,
             mavlink2.MAVLINK_MSG_ID_SYS_STATUS,
+            mavlink2.MAVLINK_MSG_ID_HEARTBEAT,
         ]:
             print('Parsed message ID:', message)
 
@@ -546,7 +562,7 @@ class AirplaneOwl02(IAirplane):
         logger.info(f"Landing device {self.target_channel_id}")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_LAND,
-            param1=1,    # 普通降落
+            param1=1,  # 普通降落
             param2=100,  # 降落速度100cm/s
             wait_for_finish=False,  # 改为非阻塞
             timeout=15.0
@@ -803,7 +819,7 @@ class AirplaneOwl02(IAirplane):
         :param b_max: 色块B通道的最高检测值
         """
         logger.info(f"Setting color detect mode for device {self.target_channel_id}: "
-                   f"L({l_min}-{l_max}), A({a_min}-{a_max}), B({b_min}-{b_max})")
+                    f"L({l_min}-{l_max}), A({a_min}-{a_max}), B({b_min}-{b_max})")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_VERSION_DETECT_MODE_SET,
             param1=l_min,
@@ -819,8 +835,8 @@ class AirplaneOwl02(IAirplane):
         logger.warning(f"Emergency stop for device {self.target_channel_id}")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_COMPONENT_ARM_DISARM,
-            param1=0,      # disarm
-            param2=21196   # 紧急停止魔术数字
+            param1=0,  # disarm
+            param2=21196  # 紧急停止魔术数字
         )
 
     def hover(self):
