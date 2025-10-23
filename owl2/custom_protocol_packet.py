@@ -105,7 +105,6 @@ class PacketParser:
         self.buffer = bytearray()
         # 为每个设备ID维护独立的MAVLink解析器和缓冲区
         self.mavlink_parsers = {}  # device_id -> MAVLink parser
-        self.mavlink_buffers = {}  # device_id -> bytearray buffer
 
     def add_data(self, data: bytes):
         """添加新收到的数据到缓存"""
@@ -204,7 +203,6 @@ class PacketParser:
         # 为设备创建MAVLink解析器（如果不存在）
         if device_id not in self.mavlink_parsers:
             self.mavlink_parsers[device_id] = mavlink2.MAVLink(None)
-            self.mavlink_buffers[device_id] = bytearray()
 
         mavlink_messages = []
 
@@ -303,6 +301,7 @@ def send_mavlink_packet_raw(serial_port, mav_msg):
     print('send_mavlink_packet_raw device_id',  mav_msg)
     mav = mavlink2.MAVLink(None)
     mav_bytes = mav_msg.pack(mav)
+    print('send_mavlink_packet_raw mav_bytes', ''.join('%02x ' % b for b in mav_bytes))
     serial_port.write(mav_bytes)
     pass
 
