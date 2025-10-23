@@ -150,8 +150,29 @@ class AirplaneManagerOwl02:
         # 解析数据包
         packets = self.packet_parser.parse_packets()
 
+        # if len(packets) > 0:
+        #     print('packets', packets)
+        #     pass
+
         if len(packets) > 0:
-            print('packets', packets)
+            hex_list = []
+            for pkt_info, raw in packets:
+                dev = pkt_info.get('device_id')
+                protocol_mode = pkt_info.get('protocol_mode')
+                payload = pkt_info.get('payload', b'')
+                try:
+                    payload_hex = payload.hex().upper() if isinstance(payload, (bytes, bytearray)) else str(payload)
+                except Exception:
+                    payload_hex = str(payload)
+                try:
+                    raw_hex = raw.hex().upper() if isinstance(raw, (bytes, bytearray)) else str(raw)
+                except Exception:
+                    raw_hex = str(raw)
+                hex_list.append(f"[dev={dev} protocol_mode={protocol_mode} payload=0x{payload_hex} raw=0x{raw_hex}]")
+                pass
+            print("packets: " + ", ".join(hex_list))
+            # logger.debug("packets: " + ", ".join(hex_list))
+            pass
 
         for packet_info, raw_data in packets:
             device_id = packet_info['device_id']
