@@ -39,7 +39,7 @@ from .custom_protocol_packet import (
     PROTOCOL_SETADDR_PAIR,
     PROTOCOL_SETADDR_PAIR_ACK,
     PROTOCOL_SETADDR_PAIR_REQUEST,
-    PROTOCOL_SETADDR_PAIR_REQUEST_ACK,
+    PROTOCOL_SETADDR_PAIR_INFO,
 )
 
 
@@ -239,7 +239,7 @@ class PairManager:
 
                 packets = packet_parser.parse_packets()
                 for packet_info, raw_data in packets:
-                    if packet_info['protocol_mode'] == PROTOCOL_SETADDR_PAIR_REQUEST_ACK:
+                    if packet_info['protocol_mode'] == PROTOCOL_SETADDR_PAIR_INFO:
                         payload = packet_info['payload']
 
                         # 每个payload包含多个16字节的结构体

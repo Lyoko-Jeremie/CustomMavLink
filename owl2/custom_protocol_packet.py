@@ -15,7 +15,7 @@ from .commonACFly import commonACFly_py3 as mavlink2
 #       SETADDR_PAIR(32)、
 #       SETADDR_PAIR_ACK(64)、
 #       SETADDR_PAIR_REQUEST(96)、
-#       SETADDR_PAIR_REQUEST_ACK(128)、
+#       SETADDR_PAIR_INFO(128)、
 #
 #
 #       当协议识别码为 COMMAND_MSG 时：
@@ -23,11 +23,11 @@ from .commonACFly import commonACFly_py3 as mavlink2
 #       当协议识别码为 SETADDR_PAIR 时： payload 为 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801 原始包字节
 #       当协议识别码为 SETADDR_PAIR_ACK 时： payload 为 uint8_t ack (0:失败，1:成功)
 #       当协议识别码为 SETADDR_PAIR_REQUEST 时： payload 为 空， 0字节长。
-#       当协议识别码为 SETADDR_PAIR_REQUEST_ACK 时： payload 中为读取到的地址数据，结构体如下
+#       当协议识别码为 SETADDR_PAIR_INFO 时： payload 中为读取到的地址数据，结构体如下
 #
 
 """
-SETADDR_PAIR_REQUEST_ACK 的每个 payload 中包含四个连续的如下的结构体，每个结构体对应4个通道，16个通道共4个包，每个包会重发3次以确保数据正确接收
+SETADDR_PAIR_INFO 的每个 payload 中包含四个连续的如下的结构体，每个结构体对应4个通道，16个通道共4个包，每个包会重发3次以确保数据正确接收
 
 typedef struct {
  uint8 t id;
@@ -47,7 +47,7 @@ PROTOCOL_COMMAND_MSG = 0        # 普通命令消息 (0x00)
 PROTOCOL_SETADDR_PAIR = 32      # 配对地址设置 (0x20)
 PROTOCOL_SETADDR_PAIR_ACK = 64  # 配对地址设置应答 (0x40)
 PROTOCOL_SETADDR_PAIR_REQUEST = 96  # 配对数据地址请求 (0x60)
-PROTOCOL_SETADDR_PAIR_REQUEST_ACK = 128  # 配对数据地址请求应答 (0x80)
+PROTOCOL_SETADDR_PAIR_INFO = 128  # 配对数据地址请求应答 (0x80)
 
 
 
@@ -191,7 +191,7 @@ class PacketParser:
             PROTOCOL_SETADDR_PAIR,          # 0x20 (32)
             PROTOCOL_SETADDR_PAIR_ACK,      # 0x40 (64)
             PROTOCOL_SETADDR_PAIR_REQUEST,  # 0x60 (96)
-            PROTOCOL_SETADDR_PAIR_REQUEST_ACK  # 0x80 (128)
+            PROTOCOL_SETADDR_PAIR_INFO  # 0x80 (128)
         ]
 
         if protocol_mode not in valid_protocols:
