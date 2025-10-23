@@ -156,7 +156,7 @@ class AirplaneManagerOwl02:
 
         if len(packets) > 0:
             hex_list = []
-            for pkt_info, raw in packets:
+            for pkt_info, raw, mavlink_msgs in packets:
                 dev = pkt_info.get('device_id')
                 protocol_mode = pkt_info.get('protocol_mode')
                 payload = pkt_info.get('payload', b'')
@@ -168,23 +168,28 @@ class AirplaneManagerOwl02:
                     raw_hex = raw.hex().upper() if isinstance(raw, (bytes, bytearray)) else str(raw)
                 except Exception:
                     raw_hex = str(raw)
-                hex_list.append(f"[dev={dev} protocol_mode={protocol_mode} payload=0x{payload_hex} raw=0x{raw_hex}]")
+
+                msg_count = len(mavlink_msgs) if mavlink_msgs else 0
+                hex_list.append(f"[dev={dev} protocol_mode={protocol_mode} mavlink_msgs={msg_count} payload=0x{payload_hex} raw=0x{raw_hex}]")
                 pass
             print("packets: " + ", ".join(hex_list))
             # logger.debug("packets: " + ", ".join(hex_list))
             pass
 
-        for packet_info, raw_data in packets:
+        for packet_info, raw_data, mavlink_messages in packets:
             device_id = packet_info['device_id']
+            protocol_mode = packet_info['protocol_mode']
             payload = packet_info['payload']
 
             try:
-                # 解析MavLink消息
-                mavlink_messages = self._parse_mavlink_payload(payload)
-
-                for msg in mavlink_messages:
-                    # 异步处理消息
-                    self._handle_mavlink_message(device_id, msg, payload)
+                # 处理MAVLink消息（仅COMMAND_MSG协议）
+                if mavlink_messages:
+                    for msg in mavlink_messages:
+                        # 异步处理消息
+                        self._handle_mavlink_message(device_id, msg, payload)
+                else:
+                    # 处理非COMMAND_MSG协议包
+                    logger.debug(f"Received non-COMMAND_MSG packet: device={device_id}, protocol_mode={protocol_mode}, payload_len={len(payload)}")
 
             except Exception as e:
                 logger.error(f"Error processing packet from device {device_id}: {e}")

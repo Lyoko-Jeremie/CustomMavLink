@@ -103,13 +103,23 @@ class PacketParser:
 
     def __init__(self):
         self.buffer = bytearray()
+        # 为每个设备ID维护独立的MAVLink解析器和缓冲区
+        self.mavlink_parsers = {}  # device_id -> MAVLink parser
+        self.mavlink_buffers = {}  # device_id -> bytearray buffer
 
     def add_data(self, data: bytes):
         """添加新收到的数据到缓存"""
         self.buffer.extend(data)
 
     def parse_packets(self):
-        """从缓存中解析出完整的数据包"""
+        """从缓存中解析出完整的数据包
+
+        Returns:
+            包含解析结果的列表，每个元素为元组：
+            - 对于COMMAND_MSG: (packet_info, raw_packet, mavlink_messages)
+            - 对于其他协议: (packet_info, raw_packet, None)
+            其中packet_info包含: device_id, protocol_mode, payload
+        """
         packets = []
 
         # print('parse_packets buffer', self.buffer)
@@ -156,7 +166,21 @@ class PacketParser:
             try:
                 parsed_packet = self._parse_single_packet(packet_data)
                 if parsed_packet:
-                    packets.append((parsed_packet, packet_data))
+                    # 处理payload：根据协议类型决定如何处理
+                    device_id = parsed_packet['device_id']
+                    protocol_mode = parsed_packet['protocol_mode']
+                    payload = parsed_packet['payload']
+
+                    mavlink_messages = None
+
+                    # 只有COMMAND_MSG协议才包含MAVLink数据流
+                    if protocol_mode == PROTOCOL_COMMAND_MSG:
+                        # 将payload添加到对应设备的MAVLink缓冲区
+                        mavlink_messages = self._parse_mavlink_stream(device_id, payload)
+
+                    # 将解析结果添加到返回列表
+                    packets.append((parsed_packet, packet_data, mavlink_messages))
+
                 # 从缓存中移除已处理的包
                 self.buffer = self.buffer[total_length:]
             except ValueError as e:
@@ -165,6 +189,37 @@ class PacketParser:
                 self.buffer = self.buffer[2:]
 
         return packets
+
+    def _parse_mavlink_stream(self, device_id: int, payload: bytes) -> list:
+        """
+        解析MAVLink数据流
+
+        Args:
+            device_id: 设备ID
+            payload: MAVLink数据流片段
+
+        Returns:
+            解析出的MAVLink消息列表
+        """
+        # 为设备创建MAVLink解析器（如果不存在）
+        if device_id not in self.mavlink_parsers:
+            self.mavlink_parsers[device_id] = mavlink2.MAVLink(None)
+            self.mavlink_buffers[device_id] = bytearray()
+
+        mavlink_messages = []
+
+        # 逐字节解析payload中的MAVLink数据
+        for byte in payload:
+            try:
+                msg = self.mavlink_parsers[device_id].parse_char(bytes([byte]))
+                if msg:
+                    mavlink_messages.append(msg)
+            except Exception as e:
+                # MAVLink解析错误，继续处理下一个字节
+                print(f"MAVLink parsing error for device {device_id}: {e}")
+                continue
+
+        return mavlink_messages
 
     def _parse_single_packet(self, packet: bytes) -> dict:
         """解析单个数据包"""

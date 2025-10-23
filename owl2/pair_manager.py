@@ -184,7 +184,7 @@ class PairManager:
                 packet_parser.add_data(data)
 
                 packets = packet_parser.parse_packets()
-                for packet_info, raw_data in packets:
+                for packet_info, raw_data, mavlink_messages in packets:
                     if packet_info['protocol_mode'] == PROTOCOL_SETADDR_PAIR_ACK:
                         # 检查ACK状态
                         payload = packet_info['payload']
@@ -238,7 +238,7 @@ class PairManager:
                 packet_parser.add_data(data)
 
                 packets = packet_parser.parse_packets()
-                for packet_info, raw_data in packets:
+                for packet_info, raw_data, mavlink_messages in packets:
                     if packet_info['protocol_mode'] == PROTOCOL_SETADDR_PAIR_INFO:
                         payload = packet_info['payload']
 
