@@ -147,6 +147,7 @@ class AirplaneOwl02(IAirplane):
             self.command_sequence += 1
             return self.command_sequence
 
+    # TODO  bug: 在前一个包的重试过程中，如果再发一次同一个指令，会导致后续任何指令都无法发出
     def _send_command_with_retry(self, command: int, param1=0, param2=0, param3=0,
                                   param4=0, param5=0, param6=0, param7=0,
                                   wait_for_finish=False, timeout=5.0, async_mode=None):
@@ -367,34 +368,45 @@ class AirplaneOwl02(IAirplane):
         - RECEIVE_COMMAND = 1（接收到命令）- 会回复三次，200ms回复一次
         - FINISH_COMMAND = 2（完成动作）- 会发三次，500ms发一次
         - COMMAND_ERROR = 3（拒绝执行指令）
+
+        注意：使用 result_param2 中的时间戳来精确匹配命令实例
         """
         command = message.command
         result = message.result
 
+        # 获取ACK中的时间戳（在result_param2中）
+        # 限制在23位范围内，与发送时保持一致
+        ack_timestamp = int(message.result_param2) & 0x7FFFFF if hasattr(message, 'result_param2') else None
+
         with self.command_lock:
-            # 更新所有匹配该命令的状态（可能有多个序列号）
+            # 根据命令ID和时间戳精确匹配命令实例
             updated = False
             for key, status in list(self.command_status.items()):
+                # 必须同时匹配命令ID和时间戳
                 if status.command == command:
+                    # 如果ACK包含时间戳，则必须匹配；否则更新所有该命令的实例（向后兼容）
+                    if ack_timestamp is not None and status.timestamp != ack_timestamp:
+                        continue
+
                     status.last_update = time.time()
 
                     if result == RECEIVE_COMMAND:
                         status.receive_count += 1
                         if status.receive_count >= 1:
                             status.is_received = True
-                        logger.debug(f"Command {command} seq={status.sequence} received ACK ({status.receive_count}/3)")
+                        logger.debug(f"Command {command} seq={status.sequence} ts={status.timestamp} received ACK ({status.receive_count}/3)")
                         updated = True
 
                     elif result == FINISH_COMMAND:
                         status.finish_count += 1
                         if status.finish_count >= 1:
                             status.is_finished = True
-                        logger.info(f"Command {command} seq={status.sequence} finished ACK ({status.finish_count}/3)")
+                        logger.info(f"Command {command} seq={status.sequence} ts={status.timestamp} finished ACK ({status.finish_count}/3)")
                         updated = True
 
                     elif result == COMMAND_ERROR:
                         status.is_error = True
-                        logger.error(f"Command {command} seq={status.sequence} error from device {self.target_channel_id}")
+                        logger.error(f"Command {command} seq={status.sequence} ts={status.timestamp} error from device {self.target_channel_id}")
                         updated = True
 
             # 清理超过10秒的旧命令状态
