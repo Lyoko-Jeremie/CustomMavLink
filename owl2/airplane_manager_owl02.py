@@ -154,27 +154,34 @@ class AirplaneManagerOwl02:
         #     print('packets', packets)
         #     pass
 
-        if len(packets) > 0:
-            hex_list = []
-            for pkt_info, raw, mavlink_msgs in packets:
-                dev = pkt_info.get('device_id')
-                protocol_mode = pkt_info.get('protocol_mode')
-                payload = pkt_info.get('payload', b'')
-                try:
-                    payload_hex = payload.hex().upper() if isinstance(payload, (bytes, bytearray)) else str(payload)
-                except Exception:
-                    payload_hex = str(payload)
-                try:
-                    raw_hex = raw.hex().upper() if isinstance(raw, (bytes, bytearray)) else str(raw)
-                except Exception:
-                    raw_hex = str(raw)
+        # if len(packets) > 0:
+        #     hex_list = []
+        #     for pkt_info, raw, mavlink_msgs in packets:
+        #         dev = pkt_info.get('device_id')
+        #         protocol_mode = pkt_info.get('protocol_mode')
+        #         payload = pkt_info.get('payload', b'')
+        #         try:
+        #             payload_hex = payload.hex().upper() if isinstance(payload, (bytes, bytearray)) else str(payload)
+        #         except Exception:
+        #             payload_hex = str(payload)
+        #         try:
+        #             raw_hex = raw.hex().upper() if isinstance(raw, (bytes, bytearray)) else str(raw)
+        #         except Exception:
+        #             raw_hex = str(raw)
+        #
+        #         msg_count = len(mavlink_msgs) if mavlink_msgs else 0
+        #         hex_list.append(f"[dev={dev} protocol_mode={protocol_mode} mavlink_msgs={msg_count} payload=0x{payload_hex} raw=0x{raw_hex}]")
+        #         pass
+        #     print("packets: " + ", ".join(hex_list))
+        #     # logger.debug("packets: " + ", ".join(hex_list))
+        #     pass
 
-                msg_count = len(mavlink_msgs) if mavlink_msgs else 0
-                hex_list.append(f"[dev={dev} protocol_mode={protocol_mode} mavlink_msgs={msg_count} payload=0x{payload_hex} raw=0x{raw_hex}]")
-                pass
-            print("packets: " + ", ".join(hex_list))
-            # logger.debug("packets: " + ", ".join(hex_list))
-            pass
+        # if len(packets) > 0:
+        #     for pkt_info, raw, mavlink_msgs in packets:
+        #         for msg in mavlink_msgs:
+        #             print(f"  mavlink_msg: {msg}")
+        #         pass
+        #     pass
 
         for packet_info, raw_data, mavlink_messages in packets:
             device_id = packet_info['device_id']

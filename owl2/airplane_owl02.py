@@ -290,7 +290,7 @@ class AirplaneOwl02(IAirplane):
                 timestamp=datetime.now(),
                 msg_id=msg_id,
                 message=message,
-                raw_packet=raw_packet
+                raw_packet=raw_packet,
             )
             self.cached_packet_record[msg_id] = record
 
@@ -437,7 +437,21 @@ class AirplaneOwl02(IAirplane):
         # 缓存数据包
         self._cache_packet_record(msg_id, message, raw_packet)
 
-        print('Parsed message ID:', msg_id, message)
+        if msg_id not in [
+            mavlink2.MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
+            mavlink2.MAVLINK_MSG_ID_GPS_RAW_INT,
+            mavlink2.MAVLINK_MSG_ID_GPS2_RAW,
+            mavlink2.MAVLINK_MSG_ID_VFR_HUD,
+            mavlink2.MAVLINK_MSG_ID_ATTITUDE,
+            mavlink2.MAVLINK_MSG_ID_RC_CHANNELS,
+            mavlink2.MAVLINK_MSG_ID_RC_CHANNELS_SCALED,
+            mavlink2.MAVLINK_MSG_ID_MISSION_CURRENT,
+            mavlink2.MAVLINK_MSG_ID_BATTERY_STATUS,
+
+            mavlink2.MAVLINK_MSG_ID_SYSTEM_TIME,
+            mavlink2.MAVLINK_MSG_ID_SYS_STATUS,
+        ]:
+            print('Parsed message ID:', message)
 
         # 查找并调用对应的解析函数
         parse_func = self.parse_table.get(msg_id)
