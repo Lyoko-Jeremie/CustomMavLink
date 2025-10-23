@@ -91,7 +91,7 @@ class PairToolsGUI:
         ttk.Label(baud_frame, text="波特率:").pack(side=tk.LEFT, padx=5)
         self.drone_baud_combo = ttk.Combobox(baud_frame, width=15, state='readonly',
                                              values=['9600', '19200', '38400', '57600', '115200'])
-        self.drone_baud_combo.set('115200')
+        self.drone_baud_combo.set('57600')
         self.drone_baud_combo.pack(side=tk.LEFT, padx=5)
 
         # 连接/断开按钮
@@ -344,7 +344,7 @@ class PairToolsGUI:
         def read_thread():
             try:
                 serial_port = self.drone_ports[port_name]
-                airplane_id = self.pair_manager.get_airplane_id_from_serial(serial_port, timeout=3.0)
+                airplane_id = self.pair_manager.get_airplane_id_from_serial(serial_port, timeout=10.0)
 
                 # 添加到列表
                 self.airplane_ids.append(airplane_id)
