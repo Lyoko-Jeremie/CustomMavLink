@@ -70,7 +70,7 @@ class PairManager:
         pass
 
     @staticmethod
-    def _receive_raw_mavlink_message(serial_port, timeout: float = 2.0, expected_msg_id: int = None):
+    def _receive_raw_mavlink_message(serial_port: serial.Serial, timeout: float = 5.0, expected_msg_id: int = None):
         """
         接收原始 MAVLink 消息（不经过自定义协议封装）
         :param serial_port: 串口对象
@@ -81,22 +81,41 @@ class PairManager:
         mav_parser = mavlink2.MAVLink(None)
         start_time = time.time()
 
+        data_buf = bytearray()
+        mavlink_messages = []
+
         while time.time() - start_time < timeout:
             if serial_port.in_waiting > 0:
-                data = serial_port.read(1)
-                msg = mav_parser.parse_char(data)
+                data = serial_port.read(serial_port.in_waiting or 1)
+                data_buf.extend(data)
 
-                if msg:
-                    # 如果指定了期望的消息ID，检查是否匹配
+                # to hex string for debug
+                print('data', ''.join(f'{b:02X} ' for b in data_buf))
+
+                for byte in data:
+                    try:
+                        msg = mav_parser.parse_char(bytes([byte]))
+                        if msg:
+                            print('msg', msg)
+                            mavlink_messages.append(msg)
+                    except Exception as e:
+                        # MAVLink解析错误，继续处理下一个字节
+                        print(f"MAVLink parsing error :", e)
+                        continue
+                        pass
+                    pass
+
+                # 检查是否有期望的消息
+                for msg in mavlink_messages:
                     if expected_msg_id is None or msg.get_msgId() == expected_msg_id:
                         return msg
-                    # 如果不匹配，继续等待
+
 
             time.sleep(0.001)  # 短暂等待避免CPU占用过高
 
         return None
 
-    def get_airplane_id_from_serial(self, serial_port: serial.Serial, timeout: float = 2.0) -> AirplaneId:
+    def get_airplane_id_from_serial(self, serial_port: serial.Serial, timeout: float = 5.0) -> AirplaneId:
         """
         从串口读取无人机ID
         :param serial_port: 已打开的串口对象
