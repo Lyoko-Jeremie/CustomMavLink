@@ -110,6 +110,18 @@ class DroneControlGUI:
         )
         btn_get_drone.pack(pady=5)
 
+        btn_disconnect = tk.Button(
+            init_frame,
+            text="断开连接并重置",
+            command=self.disconnect_and_reset,
+            bg="#F44336",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            width=20,
+            height=2
+        )
+        btn_disconnect.pack(pady=5)
+
         # 心跳包控制区域
         heartbeat_frame = tk.Frame(init_frame)
         heartbeat_frame.pack(fill="x", pady=5)
@@ -932,6 +944,35 @@ class DroneControlGUI:
             self.log_message("✓ 已禁用心跳包发送")
             self.heartbeat_indicator.config(fg="#FF0000")  # 红色
 
+    def disconnect_and_reset(self):
+        """断开串口连接并重置所有状态"""
+        def _disconnect():
+            self.log_message("正在断开连接并重置状态...")
+
+            # 停止管理器（这会关闭串口）
+            if self.manager:
+                try:
+                    self.manager.stop()
+                    self.log_message("✓ 串口已断开")
+                except Exception as e:
+                    self.log_message(f"断开串口时出错: {e}", "ERROR")
+
+            # 重置对象引用
+            self.manager = None
+            self.drone = None
+
+            # 重置心跳包状态
+            self.heartbeat_var.set(True)  # 恢复默认启用
+            self.heartbeat_indicator.config(fg="#4CAF50")  # 绿色
+
+            # 更新状态栏
+            self.update_status("未初始化")
+
+            self.log_message("✓ 所有状态已重置")
+            messagebox.showinfo("提示", "已断开连接并重置所有状态")
+
+        self.run_in_thread(_disconnect)
+
     def on_closing(self):
         """关闭窗口时的处理"""
         if self.manager:
@@ -943,6 +984,7 @@ class DroneControlGUI:
                 self.log_message(f"停止管理器时出错: {e}", "ERROR")
 
         self.root.destroy()
+        exit(0)
 
 
 def main():

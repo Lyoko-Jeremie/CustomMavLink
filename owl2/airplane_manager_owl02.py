@@ -139,7 +139,7 @@ class AirplaneManagerOwl02:
         # 读取可用数据
         available_data = self.serial_port.read(self.serial_port.in_waiting or 1)
         if not available_data:
-            print('available_data is empty')
+            # print('available_data is empty')
             return
 
         # print('_process_serial_data', available_data)
