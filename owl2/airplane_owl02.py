@@ -371,6 +371,7 @@ class AirplaneOwl02(IAirplane):
 
         注意：使用 result_param2 中的时间戳来精确匹配命令实例
         """
+        print('==============Received ACK message:', message)
         command = message.command
         result = message.result
 
