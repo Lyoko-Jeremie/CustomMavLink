@@ -344,7 +344,7 @@ class PairToolsGUI:
         def read_thread():
             try:
                 serial_port = self.drone_ports[port_name]
-                airplane_id = self.pair_manager.get_airplane_id_from_serial(serial_port, timeout=10.0)
+                airplane_id = self.pair_manager.get_airplane_id_from_serial(serial_port, timeout=5.0)
 
                 # 添加到列表
                 self.airplane_ids.append(airplane_id)
