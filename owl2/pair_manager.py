@@ -151,13 +151,8 @@ class PairManager:
         mrx_address_ack = bytes(msg.mrx_address_ack)
         mrx_address_p1 = bytes(msg.mrx_address_p1)
 
-        # TODO: 需要确认raw_pack是否应该是完整的mavlink消息字节
-        # 这里暂时使用pack方法重新打包消息作为raw_pack
-        mav_temp = mavlink2.MAVLink(None)
-        raw_pack = msg.pack(mav_temp)
-
         airplane_id = AirplaneId(
-            raw_pack=raw_pack,
+            raw_pack=msg,
             mtx_address=mtx_address,
             mrx_address_ack=mrx_address_ack,
             mrx_address_p1=mrx_address_p1
