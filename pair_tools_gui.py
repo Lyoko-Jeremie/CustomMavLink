@@ -136,6 +136,17 @@ class PairToolsGUI:
         self.drone_id_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
+        # 占位提示标签（当列表为空时显示）
+        self.drone_id_placeholder = tk.Label(
+            tree_container,
+            text="暂无无人机ID\n请连接无人机串口后使用\"读取无人机ID\"按钮读取无人机ID",
+            font=('Arial', 12),
+            fg='gray',
+            bg='white'
+        )
+        # 初始显示占位提示
+        self.drone_id_placeholder.place(relx=0.5, rely=0.5, anchor='center')
+
         # 操作按钮区域（放在id_frame内部的下方）
         btn_id_operations_frame = ttk.Frame(id_frame)
         btn_id_operations_frame.pack(fill=tk.X, pady=(5, 0))
@@ -425,6 +436,12 @@ class PairToolsGUI:
         # 添加所有ID
         for airplane_id in self.airplane_ids:
             self.drone_id_tree.insert('', tk.END, values=(airplane_id.addr_hex_str,))
+
+        # 根据列表是否为空显示或隐藏占位提示
+        if len(self.airplane_ids) == 0:
+            self.drone_id_placeholder.place(relx=0.5, rely=0.5, anchor='center')
+        else:
+            self.drone_id_placeholder.place_forget()
 
     def _delete_selected_drone_id(self):
         """删除选中的无人机ID"""
