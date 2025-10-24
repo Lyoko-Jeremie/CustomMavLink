@@ -119,18 +119,28 @@ class PairToolsGUI:
         id_frame = ttk.LabelFrame(parent, text="已读取的无人机ID", padding=10)
         id_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
+        # 表格容器（用于包含树形控件和滚动条）
+        tree_container = ttk.Frame(id_frame)
+        tree_container.pack(fill=tk.BOTH, expand=True)
+
         # 创建表格（单选模式）
         columns = ("无人机ID地址",)
-        self.drone_id_tree = ttk.Treeview(id_frame, columns=columns, show='headings', height=10, selectmode='browse')
+        self.drone_id_tree = ttk.Treeview(tree_container, columns=columns, show='headings', height=10, selectmode='browse')
         self.drone_id_tree.heading("无人机ID地址", text="无人机ID地址 (Hex)")
         self.drone_id_tree.column("无人机ID地址", width=250, anchor='w')
 
         # 滚动条
-        scrollbar = ttk.Scrollbar(id_frame, orient=tk.VERTICAL, command=self.drone_id_tree.yview)
+        scrollbar = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.drone_id_tree.yview)
         self.drone_id_tree.configure(yscrollcommand=scrollbar.set)
 
         self.drone_id_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 操作按钮区域（放在id_frame内部的下方）
+        btn_id_operations_frame = ttk.Frame(id_frame)
+        btn_id_operations_frame.pack(fill=tk.X, pady=(5, 0))
+        ttk.Button(btn_id_operations_frame, text="删除选中", command=self._delete_selected_drone_id).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_id_operations_frame, text="清除全部", command=self._clear_all_drone_ids).pack(side=tk.LEFT, padx=2)
 
         # 状态显示区域
         status_frame = ttk.LabelFrame(parent, text="状态", padding=10)
@@ -415,6 +425,37 @@ class PairToolsGUI:
         # 添加所有ID
         for airplane_id in self.airplane_ids:
             self.drone_id_tree.insert('', tk.END, values=(airplane_id.addr_hex_str,))
+
+    def _delete_selected_drone_id(self):
+        """删除选中的无人机ID"""
+        selection = self.drone_id_tree.selection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个无人机ID")
+            return
+
+        # 获取选中项的索引
+        item = selection[0]
+        item_index = self.drone_id_tree.index(item)
+
+        # 从列表中删除
+        if 0 <= item_index < len(self.airplane_ids):
+            removed_id = self.airplane_ids.pop(item_index)
+            self._update_drone_id_list()
+            messagebox.showinfo("成功", f"已删除无人机ID: {removed_id.addr_hex_str}")
+
+    def _clear_all_drone_ids(self):
+        """清除所有无人机ID"""
+        if not self.airplane_ids:
+            messagebox.showinfo("提示", "当前没有无人机ID")
+            return
+
+        # 确认对话框
+        result = messagebox.askyesno("确认", f"确定要清除所有 {len(self.airplane_ids)} 个无人机ID吗？")
+        if result:
+            count = len(self.airplane_ids)
+            self.airplane_ids.clear()
+            self._update_drone_id_list()
+            messagebox.showinfo("成功", f"已清除所有无人机ID (共 {count} 个)")
 
     def _write_pair_to_board(self):
         """将选中的无人机ID写入地面板指定通道"""
