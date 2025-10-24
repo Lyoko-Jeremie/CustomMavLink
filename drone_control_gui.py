@@ -7,7 +7,7 @@ from tkinter import ttk, scrolledtext, messagebox
 import threading
 import logging
 from datetime import datetime
-from owl2.airplane_manager_owl02 import create_manager, create_manager_with_serial
+from owl2.airplane_manager_owl02 import create_manager, create_manager_with_serial, AirplaneOwl02
 
 # 配置日志
 logging.basicConfig(
@@ -26,7 +26,7 @@ class DroneControlGUI:
         self.root.geometry("1400x900")  # 增加窗口宽度以适应三栏布局
 
         self.manager = None
-        self.drone = None
+        self.drone: AirplaneOwl02 = None
         self.drone_id = 2
 
         self.setup_ui()
