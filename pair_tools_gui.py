@@ -240,7 +240,7 @@ class PairToolsGUI:
         self.selected_drone_id_label.pack(side=tk.LEFT, padx=5)
 
         # 配对按钮
-        ttk.Button(pair_frame, text="写入左侧选择的无人机ID地址到指定通道", command=self._write_pair_to_board).pack(fill=tk.X, pady=5)
+        ttk.Button(pair_frame, text="写入无人机ID地址到目标通道", command=self._write_pair_to_board).pack(fill=tk.X, pady=5)
 
         # 地面板通道信息
         channels_frame = ttk.LabelFrame(parent, text="地面板通道 (0-15)", padding=10)
