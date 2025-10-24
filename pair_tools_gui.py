@@ -120,12 +120,10 @@ class PairToolsGUI:
         id_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # 创建表格（单选模式）
-        columns = ("序号", "MTX地址")
+        columns = ("无人机ID地址",)
         self.drone_id_tree = ttk.Treeview(id_frame, columns=columns, show='headings', height=10, selectmode='browse')
-        self.drone_id_tree.heading("序号", text="序号")
-        self.drone_id_tree.heading("MTX地址", text="MTX地址 (Hex)")
-        self.drone_id_tree.column("序号", width=50)
-        self.drone_id_tree.column("MTX地址", width=200, anchor='w')
+        self.drone_id_tree.heading("无人机ID地址", text="无人机ID地址 (Hex)")
+        self.drone_id_tree.column("无人机ID地址", width=250, anchor='w')
 
         # 滚动条
         scrollbar = ttk.Scrollbar(id_frame, orient=tk.VERTICAL, command=self.drone_id_tree.yview)
@@ -196,19 +194,19 @@ class PairToolsGUI:
         ttk.Label(channel_frame, text="(可选范围: 0-15)", font=('Arial', 9)).pack(side=tk.LEFT, padx=5)
 
         # 配对按钮
-        ttk.Button(pair_frame, text="写入配对到地面板", command=self._write_pair_to_board).pack(fill=tk.X, pady=5)
+        ttk.Button(pair_frame, text="写入左侧选择的无人机ID地址到指定通道", command=self._write_pair_to_board).pack(fill=tk.X, pady=5)
 
         # 地面板通道信息
-        channels_frame = ttk.LabelFrame(parent, text="地面板通道配对信息 (0-15)", padding=10)
+        channels_frame = ttk.LabelFrame(parent, text="地面板通道 (0-15)", padding=10)
         channels_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # 创建通道表格
-        columns = ("通道", "MTX地址")
+        columns = ("通道", "无人机ID地址")
         self.channels_tree = ttk.Treeview(channels_frame, columns=columns, show='headings', height=10)
         self.channels_tree.heading("通道", text="通道")
-        self.channels_tree.heading("MTX地址", text="MTX地址 (Hex)")
+        self.channels_tree.heading("无人机ID地址", text="无人机ID地址 (Hex)")
         self.channels_tree.column("通道", width=80)
-        self.channels_tree.column("MTX地址", width=200)
+        self.channels_tree.column("无人机ID地址", width=200)
 
         # 滚动条
         scrollbar = ttk.Scrollbar(channels_frame, orient=tk.VERTICAL, command=self.channels_tree.yview)
@@ -415,8 +413,8 @@ class PairToolsGUI:
             self.drone_id_tree.delete(item)
 
         # 添加所有ID
-        for idx, airplane_id in enumerate(self.airplane_ids, 1):
-            self.drone_id_tree.insert('', tk.END, values=(idx, airplane_id.addr_hex_str))
+        for airplane_id in self.airplane_ids:
+            self.drone_id_tree.insert('', tk.END, values=(airplane_id.addr_hex_str,))
 
     def _write_pair_to_board(self):
         """将选中的无人机ID写入地面板指定通道"""
