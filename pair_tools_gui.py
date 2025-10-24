@@ -119,13 +119,13 @@ class PairToolsGUI:
         id_frame = ttk.LabelFrame(parent, text="已读取的无人机ID", padding=10)
         id_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # 创建表格
+        # 创建表格（单选模式）
         columns = ("序号", "MTX地址")
-        self.drone_id_tree = ttk.Treeview(id_frame, columns=columns, show='headings', height=10)
+        self.drone_id_tree = ttk.Treeview(id_frame, columns=columns, show='headings', height=10, selectmode='browse')
         self.drone_id_tree.heading("序号", text="序号")
         self.drone_id_tree.heading("MTX地址", text="MTX地址 (Hex)")
         self.drone_id_tree.column("序号", width=50)
-        self.drone_id_tree.column("MTX地址", width=200)
+        self.drone_id_tree.column("MTX地址", width=200, anchor='w')
 
         # 滚动条
         scrollbar = ttk.Scrollbar(id_frame, orient=tk.VERTICAL, command=self.drone_id_tree.yview)
