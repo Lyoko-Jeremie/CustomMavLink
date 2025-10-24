@@ -28,7 +28,7 @@ class PairToolsGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("无人机配对工具")
-        self.root.geometry("1200x900")
+        self.root.geometry("1200x800")
 
         # 配对管理器
         self.pair_manager = PairManager()
@@ -116,7 +116,7 @@ class PairToolsGUI:
         self.drone_ports_placeholder = tk.Label(
             listbox_container,
             text="暂无已连接串口\n请选择串口后点击\"连接\"按钮",
-            font=('Arial', 11),
+            font=('Arial', 12),
             fg='gray',
             bg='white'
         )
@@ -143,6 +143,9 @@ class PairToolsGUI:
         self.drone_id_tree = ttk.Treeview(tree_container, columns=columns, show='headings', height=10, selectmode='browse')
         self.drone_id_tree.heading("无人机ID地址", text="无人机ID地址 (Hex)")
         self.drone_id_tree.column("无人机ID地址", width=250, anchor='w')
+
+        # 绑定选择事件，更新右侧的已选择无人机ID显示
+        self.drone_id_tree.bind('<<TreeviewSelect>>', self._on_drone_id_selected)
 
         # 滚动条
         scrollbar = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.drone_id_tree.yview)
@@ -229,6 +232,13 @@ class PairToolsGUI:
         self.channel_combo.pack(side=tk.LEFT, padx=5)
         ttk.Label(channel_frame, text="(可选范围: 0-15)", font=('Arial', 9)).pack(side=tk.LEFT, padx=5)
 
+        # 已选择的无人机ID显示
+        selected_id_frame = ttk.Frame(pair_frame)
+        selected_id_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(selected_id_frame, text="已选择的无人机ID:").pack(side=tk.LEFT, padx=5)
+        self.selected_drone_id_label = ttk.Label(selected_id_frame, text="请在左侧选择一个无人机ID地址", foreground='gray', font=('Arial', 10))
+        self.selected_drone_id_label.pack(side=tk.LEFT, padx=5)
+
         # 配对按钮
         ttk.Button(pair_frame, text="写入左侧选择的无人机ID地址到指定通道", command=self._write_pair_to_board).pack(fill=tk.X, pady=5)
 
@@ -258,8 +268,8 @@ class PairToolsGUI:
         # 占位提示标签（当列表为空时显示）
         self.channels_placeholder = tk.Label(
             channels_container,
-            text="暂无通道信息\n请连接地面板后点击\"读取通道信息\"按钮",
-            font=('Arial', 11),
+            text="暂无通道信息\n请连接地面板串口后点击\"读取通道信息\"按钮",
+            font=('Arial', 12),
             fg='gray',
             bg='white'
         )
@@ -401,7 +411,7 @@ class PairToolsGUI:
             # 不立即更新通道列表，等待读取完成后再更新
             self._update_board_status()
 
-            messagebox.showinfo("成功", f"成功连接地面板 {port_name}\n正在读取通道配对信息...")
+            messagebox.showinfo("成功", f"成功连接地面板 {port_name}\n继续读取通道配对信息...")
 
             # 延迟后自动刷新通道列表
             self.root.after(500, self._refresh_board_channels)
@@ -466,7 +476,7 @@ class PairToolsGUI:
 
                 self.root.after(0, lambda: messagebox.showinfo(
                     "成功",
-                    f"成功读取无人机ID\nMTX地址: {airplane_id.addr_hex_str}"))
+                    f"成功读取无人机ID\n无人机ID地址: {airplane_id.addr_hex_str}"))
 
             except TimeoutError as e:
                 self.root.after(0, lambda: self._update_drone_status_message("读取超时", error=True))
@@ -493,6 +503,25 @@ class PairToolsGUI:
             self.drone_id_placeholder.place(relx=0.5, rely=0.5, anchor='center')
         else:
             self.drone_id_placeholder.place_forget()
+
+    def _on_drone_id_selected(self, event):
+        """当选择无人机ID时，更新右侧的已选择无人机ID显示"""
+        selection = self.drone_id_tree.selection()
+        if not selection:
+            # 没有选中任何项
+            self.selected_drone_id_label.config(text="未选择", foreground='gray')
+            return
+
+        # 获取选中项的索引
+        item = selection[0]
+        item_index = self.drone_id_tree.index(item)
+
+        # 检查索引是否有效
+        if 0 <= item_index < len(self.airplane_ids):
+            airplane_id = self.airplane_ids[item_index]
+            self.selected_drone_id_label.config(text=airplane_id.addr_hex_str, foreground='green')
+        else:
+            self.selected_drone_id_label.config(text="未选择", foreground='gray')
 
     def _delete_selected_drone_id(self):
         """删除选中的无人机ID"""
@@ -573,7 +602,7 @@ class PairToolsGUI:
                     self.board_channels[channel] = airplane_id
                     self.root.after(0, self._update_channels_list)
                     self.root.after(0, lambda: messagebox.showinfo("成功",
-                                                                   f"成功写入配对\n通道: {channel}\nMTX地址: {airplane_id.addr_hex_str}"))
+                                                                   f"成功写入配对\n通道: {channel}\n无人机ID地址: {airplane_id.addr_hex_str}"))
                 else:
                     self.root.after(0, lambda: messagebox.showerror("失败", "配对写入失败"))
 
