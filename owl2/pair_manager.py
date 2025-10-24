@@ -53,8 +53,11 @@ class AirplaneId:
         self.mtx_address = mtx_address  # type: bytes  # 5 bytes
         self.mrx_address_ack = mrx_address_ack  # type: bytes  # 5 bytes
         self.mrx_address_p1 = mrx_address_p1  # type: bytes  # 5 bytes
-        # the hex str of mtx_address for display
-        self.addr_hex_str = ''.join(f'{b:02X}' for b in mtx_address)
+        # the hex str combining mtx_address, mrx_address_ack, and mrx_address_p1 with "-" separator
+        mtx_hex = ''.join(f'{b:02X}' for b in mtx_address)
+        mrx_ack_hex = ''.join(f'{b:02X}' for b in mrx_address_ack)
+        mrx_p1_hex = ''.join(f'{b:02X}' for b in mrx_address_p1)
+        self.addr_hex_str = f"{mtx_hex}-{mrx_ack_hex}-{mrx_p1_hex}"
         pass
 
     pass

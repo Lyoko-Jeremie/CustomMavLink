@@ -99,6 +99,7 @@ class PairToolsGUI:
         btn_frame.pack(fill=tk.X, pady=5)
         ttk.Button(btn_frame, text="连接", command=self._connect_drone_port).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_frame, text="断开", command=self._disconnect_drone_port).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="断开所有无人机串口", command=self._disconnect_all_drone_ports).pack(side=tk.LEFT, padx=2)
 
         # 已连接串口列表
         list_frame = ttk.LabelFrame(parent, text="已连接串口", padding=10)
@@ -107,8 +108,12 @@ class PairToolsGUI:
         self.drone_ports_listbox = tk.Listbox(list_frame, height=4)
         self.drone_ports_listbox.pack(fill=tk.BOTH, expand=True)
 
-        # 读取ID按钮
-        ttk.Button(list_frame, text="读取无人机ID", command=self._read_drone_id).pack(fill=tk.X, pady=5)
+        # 操作按钮区域
+        btn_operations_frame = ttk.Frame(list_frame)
+        btn_operations_frame.pack(fill=tk.X, pady=5)
+        ttk.Button(btn_operations_frame, text="读取无人机ID", command=self._read_drone_id).pack(side=tk.LEFT, padx=2)
+        # ttk.Button(btn_operations_frame, text="显示选中端口", command=self._show_selected_port).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_operations_frame, text="断开选中端口", command=self._disconnect_selected_port).pack(side=tk.LEFT, padx=2)
 
         # 已读取的无人机ID列表
         id_frame = ttk.LabelFrame(parent, text="已读取的无人机ID", padding=10)
@@ -273,6 +278,39 @@ class PairToolsGUI:
             del self.drone_ports[port_name]
             self.drone_ports_listbox.delete(index)
             messagebox.showinfo("成功", f"已断开串口 {port_name}")
+
+    def _disconnect_all_drone_ports(self):
+        """断开所有无人机串口"""
+        if not self.drone_ports:
+            messagebox.showinfo("提示", "当前没有已连接的无人机串口")
+            return
+
+        # 关闭所有串口
+        port_names = list(self.drone_ports.keys())
+        for port_name in port_names:
+            self.drone_ports[port_name].close()
+            del self.drone_ports[port_name]
+
+        # 清空列表
+        self.drone_ports_listbox.delete(0, tk.END)
+        messagebox.showinfo("成功", f"已断开所有无人机串口 (共 {len(port_names)} 个)")
+
+    def _show_selected_port(self):
+        """显示选中的无人机串口"""
+        selection = self.drone_ports_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("警告", "请先选择一个无人机串口")
+            return
+
+        index = selection[0]
+        port_info = self.drone_ports_listbox.get(index)
+        port_name = port_info.split()[0]
+
+        messagebox.showinfo("选中的串口", f"当前选中的无人机串口:\n{port_info}")
+
+    def _disconnect_selected_port(self):
+        """断开选中的端口（与_disconnect_drone_port功能相同，提供更明确的命名）"""
+        self._disconnect_drone_port()
 
     def _connect_board_port(self):
         """连接地面板串口（仅支持一个连接）"""
