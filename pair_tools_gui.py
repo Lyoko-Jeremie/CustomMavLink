@@ -236,20 +236,35 @@ class PairToolsGUI:
         channels_frame = ttk.LabelFrame(parent, text="地面板通道 (0-15)", padding=10)
         channels_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
+        # 通道表格容器（用于包含树形控件和占位提示）
+        channels_container = ttk.Frame(channels_frame)
+        channels_container.pack(fill=tk.BOTH, expand=True)
+
         # 创建通道表格
         columns = ("通道", "无人机ID地址")
-        self.channels_tree = ttk.Treeview(channels_frame, columns=columns, show='headings', height=10)
+        self.channels_tree = ttk.Treeview(channels_container, columns=columns, show='headings', height=10)
         self.channels_tree.heading("通道", text="通道")
         self.channels_tree.heading("无人机ID地址", text="无人机ID地址 (Hex)")
         self.channels_tree.column("通道", width=80)
         self.channels_tree.column("无人机ID地址", width=200)
 
         # 滚动条
-        scrollbar = ttk.Scrollbar(channels_frame, orient=tk.VERTICAL, command=self.channels_tree.yview)
+        scrollbar = ttk.Scrollbar(channels_container, orient=tk.VERTICAL, command=self.channels_tree.yview)
         self.channels_tree.configure(yscrollcommand=scrollbar.set)
 
         self.channels_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 占位提示标签（当列表为空时显示）
+        self.channels_placeholder = tk.Label(
+            channels_container,
+            text="暂无通道信息\n请连接地面板后点击\"读取通道信息\"按钮",
+            font=('Arial', 11),
+            fg='gray',
+            bg='white'
+        )
+        # 初始显示占位提示
+        self.channels_placeholder.place(relx=0.5, rely=0.5, anchor='center')
 
         # 状态显示区域
         status_frame = ttk.LabelFrame(parent, text="状态", padding=10)
@@ -402,8 +417,18 @@ class PairToolsGUI:
             self.board_port = None
             self.board_port_name = None
             self.channels_tree.delete(*self.channels_tree.get_children())
+            self._update_channels_placeholder()
+            self._update_board_status()
             if not silent:
                 messagebox.showinfo("成功", "已断开地面板串口")
+
+    def _update_channels_placeholder(self):
+        """更新地面板通道列表的占位提示显示"""
+        # 根据列表是否为空显示或隐藏占位提示
+        if len(self.channels_tree.get_children()) == 0:
+            self.channels_placeholder.place(relx=0.5, rely=0.5, anchor='center')
+        else:
+            self.channels_placeholder.place_forget()
 
     def _read_drone_id(self):
         """从选中的无人机串口读取ID"""
@@ -575,6 +600,12 @@ class PairToolsGUI:
             else:
                 addr = "读取失败"
             self.channels_tree.insert('', tk.END, values=(channel, addr))
+
+        # 根据列表是否为空显示或隐藏占位提示
+        if len(self.channels_tree.get_children()) == 0:
+            self.channels_placeholder.place(relx=0.5, rely=0.5, anchor='center')
+        else:
+            self.channels_placeholder.place_forget()
 
     def _update_board_status(self):
         """更新地面板连接状态显示"""
