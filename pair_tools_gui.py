@@ -105,8 +105,23 @@ class PairToolsGUI:
         list_frame = ttk.LabelFrame(parent, text="已连接串口", padding=10)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        self.drone_ports_listbox = tk.Listbox(list_frame, height=4)
+        # 列表容器（用于包含列表框和占位提示）
+        listbox_container = ttk.Frame(list_frame)
+        listbox_container.pack(fill=tk.BOTH, expand=True)
+
+        self.drone_ports_listbox = tk.Listbox(listbox_container, height=4)
         self.drone_ports_listbox.pack(fill=tk.BOTH, expand=True)
+
+        # 占位提示标签（当列表为空时显示）
+        self.drone_ports_placeholder = tk.Label(
+            listbox_container,
+            text="暂无已连接串口\n请选择串口后点击\"连接\"按钮",
+            font=('Arial', 11),
+            fg='gray',
+            bg='white'
+        )
+        # 初始显示占位提示
+        self.drone_ports_placeholder.place(relx=0.5, rely=0.5, anchor='center')
 
         # 操作按钮区域
         btn_operations_frame = ttk.Frame(list_frame)
@@ -277,6 +292,7 @@ class PairToolsGUI:
             ser = serial.Serial(port_name, baud_rate, timeout=1)
             self.drone_ports[port_name] = ser
             self.drone_ports_listbox.insert(tk.END, f"{port_name} ({baud_rate})")
+            self._update_drone_ports_placeholder()
             messagebox.showinfo("成功", f"成功连接串口 {port_name}")
         except Exception as e:
             messagebox.showerror("错误", f"连接串口失败: {str(e)}")
@@ -296,6 +312,7 @@ class PairToolsGUI:
             self.drone_ports[port_name].close()
             del self.drone_ports[port_name]
             self.drone_ports_listbox.delete(index)
+            self._update_drone_ports_placeholder()
             messagebox.showinfo("成功", f"已断开串口 {port_name}")
 
     def _disconnect_all_drone_ports(self):
@@ -312,7 +329,16 @@ class PairToolsGUI:
 
         # 清空列表
         self.drone_ports_listbox.delete(0, tk.END)
+        self._update_drone_ports_placeholder()
         messagebox.showinfo("成功", f"已断开所有无人机串口 (共 {len(port_names)} 个)")
+
+    def _update_drone_ports_placeholder(self):
+        """更新已连接串口列表的占位提示显示"""
+        # 根据列表是否为空显示或隐藏占位提示
+        if self.drone_ports_listbox.size() == 0:
+            self.drone_ports_placeholder.place(relx=0.5, rely=0.5, anchor='center')
+        else:
+            self.drone_ports_placeholder.place_forget()
 
     def _show_selected_port(self):
         """显示选中的无人机串口"""
