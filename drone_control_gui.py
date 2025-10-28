@@ -483,6 +483,34 @@ class DroneControlGUI:
             width=20, height=2
         ).pack(pady=5)
 
+        # 旋转控制面板（中间列）
+        rotate_frame = ttk.LabelFrame(middle_panel, text="旋转控制", padding=10)
+        rotate_frame.pack(fill="x", pady=5)
+
+        rotate_input_frame = tk.Frame(rotate_frame)
+        rotate_input_frame.pack(fill="x", pady=5)
+
+        tk.Label(rotate_input_frame, text="角度(度):").pack(side="left", padx=5)
+        self.rotate_angle = tk.Entry(rotate_input_frame, width=8)
+        # 默认角度为90度
+        self.rotate_angle.insert(0, "90")
+        self.rotate_angle.pack(side="left", padx=5)
+
+        rotate_btn_frame = tk.Frame(rotate_frame)
+        rotate_btn_frame.pack(pady=5)
+
+        tk.Button(
+            rotate_btn_frame, text="顺时针 (CW)", command=self.rotate_cw,
+            bg="#4CAF50", fg="white", font=("Arial", 9, "bold"),
+            width=12, height=2
+        ).pack(side="left", padx=5, expand=True)
+
+        tk.Button(
+            rotate_btn_frame, text="逆时针 (CCW)", command=self.rotate_ccw,
+            bg="#2196F3", fg="white", font=("Arial", 9, "bold"),
+            width=12, height=2
+        ).pack(side="left", padx=5, expand=True)
+
         # ==================== 右侧内容 - 日志输出 ====================
         # 日志输出区域
         log_frame = ttk.LabelFrame(right_panel, text="日志输出", padding=10)
@@ -1086,6 +1114,67 @@ class DroneControlGUI:
             self.log_message("✓ 色块检测设置已应用")
 
         self.run_in_thread(_apply)
+
+    def rotate_cw(self):
+        """顺时针旋转指定角度（从界面读取）"""
+        if not self.check_drone():
+            return
+
+        try:
+            degree = int(self.rotate_angle.get())
+        except Exception:
+            self.log_message("无效的旋转角度", "ERROR")
+            messagebox.showerror("错误", "请输入有效的旋转角度(整数)")
+            return
+
+        # 限制到 0..360
+        degree = max(0, min(360, degree))
+
+        def _cw():
+            self.log_message(f"顺时针旋转 {degree} 度...")
+            # 使用飞机对象的 cw 方法
+            try:
+                if hasattr(self.drone, 'cw'):
+                    self.drone.cw(degree)
+                elif hasattr(self.drone, 'rotate'):
+                    # 一些实现使用 rotate() 默认为顺时针
+                    self.drone.rotate(degree)
+                else:
+                    raise AttributeError('drone 不支持 cw/rotate 方法')
+                self.log_message("✓ 顺时针旋转命令已发送")
+            except Exception as e:
+                self.log_message(f"发送旋转命令出错: {e}", "ERROR")
+
+        self.run_in_thread(_cw)
+
+    def rotate_ccw(self):
+        """逆时针旋转指定角度（从界面读取）"""
+        if not self.check_drone():
+            return
+
+        try:
+            degree = int(self.rotate_angle.get())
+        except Exception:
+            self.log_message("无效的旋转角度", "ERROR")
+            messagebox.showerror("错误", "请输入有效的旋转角度(整数)")
+            return
+
+        degree = max(0, min(360, degree))
+
+        def _ccw():
+            self.log_message(f"逆时针旋转 {degree} 度...")
+            try:
+                if hasattr(self.drone, 'ccw'):
+                    self.drone.ccw(degree)
+                elif hasattr(self.drone, 'rotate'):
+                    # 如果只有 rotate 接口且默认顺时针，可以调用 rotate(-degree) 但 rotate 接口可能不接受负数
+                    # 这里尝试调用 rotate 并希望实现提供 ccw 方法；如无则抛错
+                    raise AttributeError('drone 不支持 ccw 方法')
+                self.log_message("✓ 逆时针旋转命令已发送")
+            except Exception as e:
+                self.log_message(f"发送旋转命令出错: {e}", "ERROR")
+
+        self.run_in_thread(_ccw)
 
     def toggle_heartbeat(self):
         """切换心跳包发送"""
