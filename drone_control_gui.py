@@ -8,6 +8,11 @@ import threading
 import logging
 from datetime import datetime
 from owl2.airplane_manager_owl02 import create_manager, create_manager_with_serial, AirplaneOwl02
+try:
+    # pyserial provides a cross-platform way to list serial ports
+    from serial.tools import list_ports
+except Exception:
+    list_ports = None
 
 # 配置日志
 logging.basicConfig(
@@ -68,9 +73,14 @@ class DroneControlGUI:
         com_frame.pack(fill="x", pady=5)
 
         tk.Label(com_frame, text="COM口:").pack(side="left", padx=5)
-        self.com_port_entry = tk.Entry(com_frame, width=10)
-        self.com_port_entry.insert(0, "COM7")
-        self.com_port_entry.pack(side="left", padx=5)
+        # 使用下拉框列出当前可用的COM口
+        self.com_port_combo = ttk.Combobox(com_frame, width=15, state="readonly")
+        self._populate_com_ports()
+        self.com_port_combo.pack(side="left", padx=5)
+
+        # 刷新端口列表按钮
+        refresh_btn = tk.Button(com_frame, text="刷新", command=self._populate_com_ports, width=6)
+        refresh_btn.pack(side="left", padx=5)
 
         tk.Label(com_frame, text="波特率:").pack(side="left", padx=5)
         self.baudrate_entry = tk.Entry(com_frame, width=10)
@@ -535,7 +545,8 @@ class DroneControlGUI:
         """初始化管理器"""
         def _init():
             self.log_message("正在初始化管理器...")
-            com_port = self.com_port_entry.get()
+            # 从下拉框获取COM口，如果未选择则使用空字符串
+            com_port = self.com_port_combo.get() if hasattr(self, 'com_port_combo') else ''
             baudrate = self.baudrate_entry.get()
 
             # 尝试将波特率转换为整数
@@ -553,6 +564,27 @@ class DroneControlGUI:
             self.update_status("管理器已初始化")
 
         self.run_in_thread(_init)
+
+    def _populate_com_ports(self):
+        """列出系统上可用的串口，并更新下拉框。"""
+        ports = []
+        if list_ports is not None:
+            try:
+                ports_info = list_ports.comports()
+                ports = [p.device for p in ports_info]
+            except Exception as e:
+                self.log_message(f"列出COM口时出错: {e}", "WARNING")
+        # 如果没有检测到端口，显示提示项
+        if not ports:
+            ports = ["(无可用COM口)"]
+
+        # 更新combobox的值并选中第一个
+        try:
+            self.com_port_combo['values'] = ports
+            self.com_port_combo.current(0)
+        except Exception:
+            # 在初始化之前可能会发生（防御性处理）
+            pass
 
     def get_drone(self):
         """获取无人机对象"""
