@@ -29,7 +29,7 @@ class DroneControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("无人机控制调试界面")
-        self.root.geometry("1400x1000")  # 增加窗口宽度以适应三栏布局
+        self.root.geometry("1400x950")  # 增加窗口宽度以适应三栏布局
 
         self.manager = None
         self.drone: Optional[AirplaneOwl02] = None
@@ -483,7 +483,7 @@ class DroneControlGUI:
             width=20, height=2
         ).pack(pady=5)
 
-        # 旋转控制面板（中间列）
+        # 旋转控制面板
         rotate_frame = ttk.LabelFrame(middle_panel, text="旋转控制", padding=10)
         rotate_frame.pack(fill="x", pady=5)
 
@@ -512,6 +512,39 @@ class DroneControlGUI:
         ).pack(side="left", padx=5, expand=True)
 
         # ==================== 右侧内容 - 日志输出 ====================
+
+        # 翻滚控制面板（移到右侧，放在日志输出上方）
+        flip_frame = ttk.LabelFrame(right_panel, text="翻滚控制", padding=10)
+        flip_frame.pack(fill="x", pady=5)
+
+        flip_btn_frame = tk.Frame(flip_frame)
+        flip_btn_frame.pack(fill="x", pady=5)
+
+        # 四个翻滚按钮一排排列
+        tk.Button(
+            flip_btn_frame, text="前翻 (Flip Forward)", command=self.flip_forward,
+            bg="#FF5722", fg="white", font=("Arial", 9, "bold"),
+            width=14, height=2
+        ).pack(side="left", padx=5, pady=3, expand=True, fill='x')
+
+        tk.Button(
+            flip_btn_frame, text="后翻 (Flip Back)", command=self.flip_back,
+            bg="#9E9E9E", fg="white", font=("Arial", 9, "bold"),
+            width=14, height=2
+        ).pack(side="left", padx=5, pady=3, expand=True, fill='x')
+
+        tk.Button(
+            flip_btn_frame, text="左翻 (Flip Left)", command=self.flip_left,
+            bg="#03A9F4", fg="white", font=("Arial", 9, "bold"),
+            width=14, height=2
+        ).pack(side="left", padx=5, pady=3, expand=True, fill='x')
+
+        tk.Button(
+            flip_btn_frame, text="右翻 (Flip Right)", command=self.flip_right,
+            bg="#009688", fg="white", font=("Arial", 9, "bold"),
+            width=14, height=2
+        ).pack(side="left", padx=5, pady=3, expand=True, fill='x')
+
         # 日志输出区域
         log_frame = ttk.LabelFrame(right_panel, text="日志输出", padding=10)
         log_frame.pack(fill="both", expand=True, pady=5)
@@ -1175,6 +1208,78 @@ class DroneControlGUI:
                 self.log_message(f"发送旋转命令出错: {e}", "ERROR")
 
         self.run_in_thread(_ccw)
+
+    def flip_forward(self):
+        """前翻 - 调用 drone.flip_forward()"""
+        if not self.check_drone():
+            return
+
+        def _flip():
+            self.log_message("执行前翻...")
+            try:
+                if hasattr(self.drone, 'flip_forward'):
+                    self.drone.flip_forward()
+                    self.log_message("✓ 前翻命令已发送")
+                else:
+                    raise AttributeError('drone 不支持 flip_forward 方法')
+            except Exception as e:
+                self.log_message(f"发送前翻命令出错: {e}", "ERROR")
+
+        self.run_in_thread(_flip)
+
+    def flip_back(self):
+        """后翻 - 调用 drone.flip_back()"""
+        if not self.check_drone():
+            return
+
+        def _flip():
+            self.log_message("执行后翻...")
+            try:
+                if hasattr(self.drone, 'flip_back'):
+                    self.drone.flip_back()
+                    self.log_message("✓ 后翻命令已发送")
+                else:
+                    raise AttributeError('drone 不支持 flip_back 方法')
+            except Exception as e:
+                self.log_message(f"发送后翻命令出错: {e}", "ERROR")
+
+        self.run_in_thread(_flip)
+
+    def flip_left(self):
+        """左翻 - 调用 drone.flip_left()"""
+        if not self.check_drone():
+            return
+
+        def _flip():
+            self.log_message("执行左翻...")
+            try:
+                if hasattr(self.drone, 'flip_left'):
+                    self.drone.flip_left()
+                    self.log_message("✓ 左翻命令已发送")
+                else:
+                    raise AttributeError('drone 不支持 flip_left 方法')
+            except Exception as e:
+                self.log_message(f"发送左翻命令出错: {e}", "ERROR")
+
+        self.run_in_thread(_flip)
+
+    def flip_right(self):
+        """右翻 - 调用 drone.flip_right()"""
+        if not self.check_drone():
+            return
+
+        def _flip():
+            self.log_message("执行右翻...")
+            try:
+                if hasattr(self.drone, 'flip_right'):
+                    self.drone.flip_right()
+                    self.log_message("✓ 右翻命令已发送")
+                else:
+                    raise AttributeError('drone 不支持 flip_right 方法')
+            except Exception as e:
+                self.log_message(f"发送右翻命令出错: {e}", "ERROR")
+
+        self.run_in_thread(_flip)
 
     def toggle_heartbeat(self):
         """切换心跳包发送"""
