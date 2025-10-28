@@ -7,7 +7,8 @@ from tkinter import ttk, scrolledtext, messagebox
 import threading
 import logging
 from datetime import datetime
-from owl2.airplane_manager_owl02 import create_manager, create_manager_with_serial, AirplaneOwl02
+from typing import Optional
+from owl2.airplane_manager_owl02 import create_manager_with_serial, AirplaneOwl02
 try:
     # pyserial provides a cross-platform way to list serial ports
     from serial.tools import list_ports
@@ -31,7 +32,7 @@ class DroneControlGUI:
         self.root.geometry("1400x900")  # 增加窗口宽度以适应三栏布局
 
         self.manager = None
-        self.drone: AirplaneOwl02 = None
+        self.drone: Optional[AirplaneOwl02] = None
         self.drone_id = 2
 
         self.setup_ui()
@@ -91,9 +92,12 @@ class DroneControlGUI:
         id_frame = tk.Frame(init_frame)
         id_frame.pack(fill="x", pady=5)
         tk.Label(id_frame, text="无人机ID:").pack(side="left", padx=5)
-        self.id_entry = tk.Entry(id_frame, width=10)
-        self.id_entry.insert(0, "2")
-        self.id_entry.pack(side="left", padx=5)
+        # 使用下拉框选择无人机ID（默认0-16）。如果初始化了manager，会尝试使用管理器提供的列表刷新此下拉框。
+        self.id_combo = ttk.Combobox(id_frame, width=10, state="readonly")
+        # 预填默认选项（0..16）并设置默认值为2
+        self.id_combo['values'] = [str(i) for i in range(0, 17)]
+        self.id_combo.set(str(self.drone_id))
+        self.id_combo.pack(side="left", padx=5)
 
         # 初始化按钮
         btn_init = tk.Button(
@@ -560,6 +564,11 @@ class DroneControlGUI:
             # 使用串口创建管理器
             self.manager = create_manager_with_serial(com_port, baudrate)
             self.manager.init()
+            # 初始化成功后刷新无人机ID下拉列表（如果存在）
+            try:
+                self._populate_drone_ids()
+            except Exception:
+                pass
             self.log_message("✓ 管理器初始化成功")
             self.update_status("管理器已初始化")
 
@@ -586,6 +595,50 @@ class DroneControlGUI:
             # 在初始化之前可能会发生（防御性处理）
             pass
 
+    def _populate_drone_ids(self):
+        """填充无人机ID下拉框。优先使用manager提供的列表，否则使用默认1-10."""
+        ids = []
+        if getattr(self, 'manager', None):
+            try:
+                # 尝试从manager获取已知airplane id列表（接口不固定，做保护性检测）
+                raw_ids = []
+                if hasattr(self.manager, 'list_airplanes'):
+                    raw_ids = list(self.manager.list_airplanes())
+                elif hasattr(self.manager, 'get_airplanes'):
+                    raw_ids = list(self.manager.get_airplanes())
+                elif hasattr(self.manager, 'airplanes'):
+                    try:
+                        raw_ids = list(getattr(self.manager, 'airplanes').keys())
+                    except Exception:
+                        raw_ids = []
+
+                # 规范化为整数，过滤到 0..16 范围，并排序去重
+                num_ids = []
+                for r in raw_ids:
+                    try:
+                        v = int(r)
+                        if 0 <= v <= 16:
+                            num_ids.append(v)
+                    except Exception:
+                        continue
+
+                num_ids = sorted(set(num_ids))
+                ids = [str(i) for i in num_ids]
+            except Exception as e:
+                self.log_message(f"获取无人机列表时出错: {e}", "WARNING")
+
+        if not ids:
+            ids = [str(i) for i in range(0, 17)]
+
+        try:
+            self.id_combo['values'] = ids
+            # 如果当前选择值不存在于新列表中，则选中第一个
+            current = self.id_combo.get()
+            if not current or current not in ids:
+                self.id_combo.set(ids[0])
+        except Exception:
+            pass
+
     def get_drone(self):
         """获取无人机对象"""
         def _get():
@@ -595,7 +648,8 @@ class DroneControlGUI:
                 return
 
             try:
-                self.drone_id = int(self.id_entry.get())
+                # 从下拉框读取无人机ID
+                self.drone_id = int(self.id_combo.get())
             except ValueError:
                 self.log_message("无效的无人机ID", "ERROR")
                 messagebox.showerror("错误", "请输入有效的无人机ID")
