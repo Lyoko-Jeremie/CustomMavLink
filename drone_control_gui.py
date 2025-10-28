@@ -100,7 +100,8 @@ class DroneControlGUI:
         self.id_combo.pack(side="left", padx=5)
 
         # 初始化按钮
-        btn_init = tk.Button(
+        # 初始化按钮
+        self.btn_init = tk.Button(
             init_frame,
             text="初始化管理器",
             command=self.init_manager,
@@ -110,7 +111,7 @@ class DroneControlGUI:
             width=20,
             height=2
         )
-        btn_init.pack(pady=5)
+        self.btn_init.pack(pady=5)
 
         btn_get_drone = tk.Button(
             init_frame,
@@ -124,7 +125,8 @@ class DroneControlGUI:
         )
         btn_get_drone.pack(pady=5)
 
-        btn_disconnect = tk.Button(
+        # 断开连接按钮，初始禁用
+        self.btn_disconnect = tk.Button(
             init_frame,
             text="断开连接并重置",
             command=self.disconnect_and_reset,
@@ -132,9 +134,10 @@ class DroneControlGUI:
             fg="white",
             font=("Arial", 10, "bold"),
             width=20,
-            height=2
+            height=2,
+            state='disabled'
         )
-        btn_disconnect.pack(pady=5)
+        self.btn_disconnect.pack(pady=5)
 
         # 心跳包控制区域
         heartbeat_frame = tk.Frame(init_frame)
@@ -547,6 +550,12 @@ class DroneControlGUI:
     # 控制命令方法
     def init_manager(self):
         """初始化管理器"""
+        # 防止重复初始化
+        if getattr(self, 'manager', None):
+            self.log_message("管理器已初始化，无需重复初始化", "WARNING")
+            messagebox.showinfo("提示", "管理器已初始化")
+            return
+
         def _init():
             self.log_message("正在初始化管理器...")
             # 从下拉框获取COM口，如果未选择则使用空字符串
@@ -564,6 +573,18 @@ class DroneControlGUI:
             # 使用串口创建管理器
             self.manager = create_manager_with_serial(com_port, baudrate)
             self.manager.init()
+            # 初始化成功后，禁用COM口选择，防止在连接后被修改
+            try:
+                # manager.init() 在后台线程中执行，所有tkinter GUI更新需切换到主线程
+                if hasattr(self, 'root') and hasattr(self, 'com_port_combo'):
+                    # 禁用COM下拉，禁用初始化按钮，启用断开按钮
+                    self.root.after(0, lambda: (
+                        self.com_port_combo.config(state='disabled'),
+                        getattr(self, 'btn_init', None) and self.btn_init.config(state='disabled'),
+                        getattr(self, 'btn_disconnect', None) and self.btn_disconnect.config(state='normal')
+                    ))
+            except Exception:
+                pass
             # 初始化成功后刷新无人机ID下拉列表（如果存在）
             try:
                 self._populate_drone_ids()
@@ -576,6 +597,13 @@ class DroneControlGUI:
 
     def _populate_com_ports(self):
         """列出系统上可用的串口，并更新下拉框。"""
+        # 如果当前COM下拉已被禁用（表示串口已连接），不要刷新列表
+        try:
+            if hasattr(self, 'com_port_combo') and str(self.com_port_combo['state']) == 'disabled':
+                return
+        except Exception:
+            pass
+
         ports = []
         if list_ports is not None:
             try:
@@ -1035,6 +1063,13 @@ class DroneControlGUI:
         def _disconnect():
             self.log_message("正在断开连接并重置状态...")
 
+            # 在开始断开时立即禁用断开按钮，防止重复点击
+            try:
+                if hasattr(self, 'root') and hasattr(self, 'btn_disconnect'):
+                    self.root.after(0, lambda: self.btn_disconnect.config(state='disabled'))
+            except Exception:
+                pass
+
             # 停止管理器（这会关闭串口）
             if self.manager:
                 try:
@@ -1054,6 +1089,18 @@ class DroneControlGUI:
             # 更新状态栏
             self.update_status("未初始化")
 
+            # 重新启用COM口选择（在主线程中执行GUI更新）
+            try:
+                if hasattr(self, 'root') and hasattr(self, 'com_port_combo'):
+                    # 恢复COM下拉、启用初始化按钮并禁用断开按钮
+                    self.root.after(0, lambda: (
+                        self.com_port_combo.config(state='readonly'),
+                        getattr(self, 'btn_init', None) and self.btn_init.config(state='normal'),
+                        getattr(self, 'btn_disconnect', None) and self.btn_disconnect.config(state='disabled')
+                    ))
+            except Exception:
+                pass
+
             self.log_message("✓ 所有状态已重置")
             messagebox.showinfo("提示", "已断开连接并重置所有状态")
 
@@ -1071,6 +1118,21 @@ class DroneControlGUI:
             finally:
                 self.manager = None
                 self.drone = None
+                # 在清理时恢复COM口选择并调整按钮状态为初始状态（启用初始化，禁用断开）
+                try:
+                    if hasattr(self, 'com_port_combo'):
+                        if hasattr(self, 'root'):
+                            self.root.after(0, lambda: (
+                                self.com_port_combo.config(state='readonly'),
+                                getattr(self, 'btn_init', None) and self.btn_init.config(state='normal'),
+                                getattr(self, 'btn_disconnect', None) and self.btn_disconnect.config(state='disabled')
+                            ))
+                        else:
+                            self.com_port_combo.config(state='readonly')
+                            getattr(self, 'btn_init', None) and self.btn_init.config(state='normal')
+                            getattr(self, 'btn_disconnect', None) and self.btn_disconnect.config(state='disabled')
+                except Exception:
+                    pass
 
     def on_closing(self):
         """关闭窗口时的处理"""
