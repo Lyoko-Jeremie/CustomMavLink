@@ -696,7 +696,7 @@ class AirplaneOwl02(IAirplane):
             command=mavlink2.MAV_CMD_EXT_DRONE_CIRCLE,
             param1=2,  # 顺时针
             param2=degree,
-            wait_for_finish=False
+            wait_for_finish=False,
         )
 
     def ccw(self, degree: int):
@@ -710,7 +710,7 @@ class AirplaneOwl02(IAirplane):
             command=mavlink2.MAV_CMD_EXT_DRONE_CIRCLE,
             param1=1,  # 逆时针
             param2=degree,
-            wait_for_finish=False
+            wait_for_finish=False,
         )
 
     def speed(self, speed: int):
@@ -723,7 +723,8 @@ class AirplaneOwl02(IAirplane):
         # param1: 飞行速度（单位cm/s）
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_CHANGE_SPEED,
-            param1=speed
+            param1=speed,
+            wait_for_finish=False,
         )
 
     def high(self, high: int):
@@ -752,7 +753,8 @@ class AirplaneOwl02(IAirplane):
             param2=g,
             param3=b,
             param4=0,
-            param5=0
+            param5=0,
+            wait_for_finish=False,
         )
 
     def bln(self, r: int, g: int, b: int):
@@ -772,7 +774,8 @@ class AirplaneOwl02(IAirplane):
             param2=g,
             param3=b,
             param4=1,  # 呼吸灯模式
-            param5=0
+            param5=0,
+            wait_for_finish=False,
         )
 
     def rainbow(self, r: int, g: int, b: int):
@@ -792,7 +795,8 @@ class AirplaneOwl02(IAirplane):
             param2=g,
             param3=b,
             param4=0,
-            param5=1  # 彩虹灯模式
+            param5=1,  # 彩虹灯模式
+            wait_for_finish=False,
         )
 
     def airplane_mode(self, mode: int):
@@ -827,7 +831,8 @@ class AirplaneOwl02(IAirplane):
             param3=a_min,
             param4=a_max,
             param5=b_min,
-            param6=b_max
+            param6=b_max,
+            wait_for_finish=False
         )
 
     def stop(self):
@@ -854,30 +859,38 @@ class AirplaneOwl02(IAirplane):
         """前翻 - 使用自定义命令"""
         logger.info(f"Flip forward for device {self.target_channel_id}")
         self._send_command_with_retry(
-            command=mavlink2.MAV_CMD_USER_4,
-            param1=1  # 前翻
+            command=mavlink2.MAV_CMD_EXT_DRONE_EXTRA_ACTIONS,
+            param1=1,
+            param2=1,
+            wait_for_finish=False
         )
 
     def flip_back(self):
         """后翻 - 使用自定义命令"""
         logger.info(f"Flip back for device {self.target_channel_id}")
         self._send_command_with_retry(
-            command=mavlink2.MAV_CMD_USER_4,
-            param1=2  # 后翻
+            command=mavlink2.MAV_CMD_EXT_DRONE_EXTRA_ACTIONS,
+            param1=1,
+            param2=2,
+            wait_for_finish=False
         )
 
     def flip_left(self):
         """左翻 - 使用自定义命令"""
         logger.info(f"Flip left for device {self.target_channel_id}")
         self._send_command_with_retry(
-            command=mavlink2.MAV_CMD_USER_4,
-            param1=3  # 左翻
+            command=mavlink2.MAV_CMD_EXT_DRONE_EXTRA_ACTIONS,
+            param1=1,
+            param2=3,
+            wait_for_finish=False
         )
 
     def flip_right(self):
         """右翻 - 使用自定义命令"""
         logger.info(f"Flip right for device {self.target_channel_id}")
         self._send_command_with_retry(
-            command=mavlink2.MAV_CMD_USER_4,
-            param1=4  # 右翻
+            command=mavlink2.MAV_CMD_EXT_DRONE_EXTRA_ACTIONS,
+            param1=1,
+            param2=4,
+            wait_for_finish=False
         )
