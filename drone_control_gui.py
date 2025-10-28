@@ -29,7 +29,7 @@ class DroneControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("无人机控制调试界面")
-        self.root.geometry("1400x900")  # 增加窗口宽度以适应三栏布局
+        self.root.geometry("1400x1000")  # 增加窗口宽度以适应三栏布局
 
         self.manager = None
         self.drone: Optional[AirplaneOwl02] = None
@@ -502,15 +502,28 @@ class DroneControlGUI:
             bg="#607D8B", fg="white", width=15
         ).pack(pady=5)
 
-        # 底部状态栏
+        # 底部状态栏（包含状态文本和当前控制的无人机ID）
+        status_frame = tk.Frame(self.root, bg="#F0F0F0")
+        status_frame.pack(fill="x", side="bottom")
+
         self.status_label = tk.Label(
-            self.root,
+            status_frame,
             text="状态: 未初始化",
             bg="#F0F0F0",
             anchor="w",
             padx=10
         )
-        self.status_label.pack(fill="x", side="bottom")
+        self.status_label.pack(side="left", fill="x", expand=True)
+
+        # 显示当前已获取并正在控制的无人机ID，默认为空（—）
+        self.drone_id_label = tk.Label(
+            status_frame,
+            text="当前无人机: —",
+            bg="#F0F0F0",
+            anchor="e",
+            padx=10
+        )
+        self.drone_id_label.pack(side="right")
 
     def log_message(self, message, level="INFO"):
         """在日志区域显示消息"""
@@ -534,6 +547,26 @@ class DroneControlGUI:
     def update_status(self, status):
         """更新状态栏"""
         self.status_label.config(text=f"状态: {status}")
+
+    def set_current_drone(self, drone_id: Optional[int]):
+        """更新状态栏右侧的当前无人机ID显示。传入None清除显示。"""
+        try:
+            if drone_id is None or not getattr(self, 'drone', None):
+                text = "当前无人机: —"
+            else:
+                text = f"当前无人机: ID={int(drone_id)}"
+            # 确保在主线程更新GUI
+            if hasattr(self, 'root'):
+                try:
+                    self.root.after(0, lambda: self.drone_id_label.config(text=text))
+                except Exception:
+                    # 备用：直接配置
+                    self.drone_id_label.config(text=text)
+            else:
+                self.drone_id_label.config(text=text)
+        except Exception:
+            # 忽略任何更新错误（防御性处理）
+            pass
 
     def run_in_thread(self, func, *args):
         """在线程中运行函数，避免阻塞GUI"""
@@ -686,7 +719,20 @@ class DroneControlGUI:
             self.log_message(f"正在获取无人机 (ID={self.drone_id})...")
             self.drone = self.manager.get_airplane(self.drone_id)
             self.log_message(f"✓ 无人机对象获取成功 (ID={self.drone_id})")
-            self.update_status(f"无人机已连接 (ID={self.drone_id})")
+            # 更新状态栏文本并更新右侧的当前无人机ID显示（在主线程中执行GUI更新）
+            try:
+                if hasattr(self, 'root'):
+                    self.root.after(0, lambda: (
+                        self.update_status(f"无人机已连接 (ID={self.drone_id})"),
+                        self.set_current_drone(self.drone_id)
+                    ))
+                else:
+                    self.update_status(f"无人机已连接 (ID={self.drone_id})")
+                    self.set_current_drone(self.drone_id)
+            except Exception:
+                # 保护性回退
+                self.update_status(f"无人机已连接 (ID={self.drone_id})")
+                self.set_current_drone(self.drone_id)
 
         self.run_in_thread(_get)
 
@@ -1082,6 +1128,15 @@ class DroneControlGUI:
             self.manager = None
             self.drone = None
 
+            # 清除当前无人机显示
+            try:
+                if hasattr(self, 'root'):
+                    self.root.after(0, lambda: self.set_current_drone(None))
+                else:
+                    self.set_current_drone(None)
+            except Exception:
+                pass
+
             # 重置心跳包状态
             self.heartbeat_var.set(True)  # 恢复默认启用
             self.heartbeat_indicator.config(fg="#4CAF50")  # 绿色
@@ -1118,6 +1173,14 @@ class DroneControlGUI:
             finally:
                 self.manager = None
                 self.drone = None
+                # 清除当前无人机显示
+                try:
+                    if hasattr(self, 'root'):
+                        self.root.after(0, lambda: self.set_current_drone(None))
+                    else:
+                        self.set_current_drone(None)
+                except Exception:
+                    pass
                 # 在清理时恢复COM口选择并调整按钮状态为初始状态（启用初始化，禁用断开）
                 try:
                     if hasattr(self, 'com_port_combo'):
