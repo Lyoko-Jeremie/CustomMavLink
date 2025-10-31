@@ -320,6 +320,9 @@ class PairToolsGUI:
             self._update_drone_ports_placeholder()
             messagebox.showinfo("成功", f"成功连接串口 {port_name}")
         except Exception as e:
+            print(e)
+            import traceback, sys
+            traceback.print_exc(file=sys.stdout)
             messagebox.showerror("错误", f"连接串口失败: {str(e)}")
 
     def _disconnect_drone_port(self):
@@ -417,6 +420,9 @@ class PairToolsGUI:
             self.root.after(500, self._refresh_board_channels)
 
         except Exception as e:
+            print(e)
+            import traceback, sys
+            traceback.print_exc(file=sys.stdout)
             messagebox.showerror("错误", f"连接串口失败: {str(e)}")
             self._update_board_status()
 
@@ -479,9 +485,15 @@ class PairToolsGUI:
                     f"成功读取无人机ID\n无人机ID地址: {airplane_id.addr_hex_str}"))
 
             except TimeoutError as e:
+                print(e)
+                import traceback, sys
+                traceback.print_exc(file=sys.stdout)
                 self.root.after(0, lambda: self._update_drone_status_message("读取超时", error=True))
                 self.root.after(0, lambda err=e: messagebox.showerror("超时", str(err)))
             except Exception as e:
+                print(e)
+                import traceback, sys
+                traceback.print_exc(file=sys.stdout)
                 self.root.after(0, lambda: self._update_drone_status_message(f"读取失败", error=True))
                 self.root.after(0, lambda err=e: messagebox.showerror("错误", f"读取失败: {str(err)}"))
 
@@ -610,6 +622,9 @@ class PairToolsGUI:
                     self.root.after(0, lambda: messagebox.showerror("失败", "配对写入失败"))
 
             except Exception as err:
+                print(err)
+                import traceback, sys
+                traceback.print_exc(file=sys.stdout)
                 self.root.after(0, lambda e=err: messagebox.showerror("错误", f"写入失败: {str(e)}"))
 
         thread = threading.Thread(target=write_thread, daemon=True)
@@ -685,6 +700,9 @@ class PairToolsGUI:
                 self.root.after(0, lambda status_msg_s=status_msg: self._update_status_message(status_msg_s))
 
             except Exception as err:
+                print(err)
+                import traceback, sys
+                traceback.print_exc(file=sys.stdout)
                 self.root.after(0, lambda e=err: self._update_status_message(
                     f"读取通道信息失败: {str(e)}", error=True
                 ))

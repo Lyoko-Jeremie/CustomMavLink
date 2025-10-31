@@ -104,6 +104,8 @@ class PairManager:
                     except Exception as e:
                         # MAVLink解析错误，继续处理下一个字节
                         print(f"MAVLink parsing error :", e)
+                        import traceback, sys
+                        traceback.print_exc(file=sys.stdout)
                         continue
                         pass
                     pass
@@ -154,8 +156,11 @@ class PairManager:
         mrx_address_ack = bytes(msg.mrx_address_ack)
         mrx_address_p1 = bytes(msg.mrx_address_p1)
 
+        mav_temp = mavlink2.MAVLink(None)
+        raw_pack = msg.pack(mav_temp)
+
         airplane_id = AirplaneId(
-            raw_pack=msg,
+            raw_pack=raw_pack,
             mtx_address=mtx_address,
             mrx_address_ack=mrx_address_ack,
             mrx_address_p1=mrx_address_p1

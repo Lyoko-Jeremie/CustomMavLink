@@ -205,6 +205,8 @@ def receive_mavlink_packet(serial_port):
                 }
         except Exception as e:
             print(f"MavLink parsing error: {e}")
+            import traceback, sys
+            traceback.print_exc(file=sys.stdout)
             return {
                 'device_id': device_id,
                 'raw_payload': payload

@@ -215,6 +215,14 @@ class PacketParser:
             except Exception as e:
                 # MAVLink解析错误，继续处理下一个字节
                 print(f"MAVLink parsing error for device {device_id}: {e}")
+                import traceback, sys, inspect
+                traceback.print_exc(file=sys.stdout)
+                for frame in inspect.stack()[1:]:
+                    fname = frame.filename
+                    lineno = frame.lineno
+                    func = frame.function
+                    ctx = frame.code_context[0].strip() if frame.code_context else ''
+                    print(f"    File \"{fname}\", line {lineno}, in {func} -> {ctx}")
                 continue
 
         return mavlink_messages
@@ -364,6 +372,8 @@ def receive_mavlink_packet(serial_port, packet_parser=None):
                 })
         except Exception as e:
             print(f"MavLink parsing error: {e}")
+            import traceback, sys
+            traceback.print_exc(file=sys.stdout)
             result.append({
                 'device_id': device_id,
                 'raw_payload': payload,
