@@ -164,7 +164,7 @@ class PairManager:
         return airplane_id
 
     def set_airplane_id_to_channel(self, serial_port: serial.Serial, channel: int, airplane_id: AirplaneId,
-                                   timeout: float = 2.0) -> bool:
+                                   timeout: float = 5.0) -> bool:
         """
         将无人机ID写入地面板指定通道
         :param serial_port: 已打开的串口对象（地面板）
@@ -177,6 +177,10 @@ class PairManager:
         if not (0 <= channel <= 15):
             raise ValueError(f"通道号必须在0-15之间，当前值: {channel}")
 
+        if serial_port.in_waiting > 0:
+            useless_data = serial_port.read(serial_port.in_waiting)
+            print('set_airplane_id_to_channel clear useless data:', ''.join(f'{b:02X} ' for b in useless_data))
+
         # 清空接收缓冲区
         serial_port.reset_input_buffer()
 
@@ -188,6 +192,8 @@ class PairManager:
             protocol_mode=PROTOCOL_SETADDR_PAIR
         )
 
+        print('set_airplane_id_to_channel send packet:', ''.join(f'{b:02X} ' for b in packet))
+
         serial_port.write(packet)
 
         # 等待确认报文 PROTOCOL_SETADDR_PAIR_ACK
@@ -198,6 +204,7 @@ class PairManager:
         while time.time() - start_time < timeout:
             if serial_port.in_waiting > 0:
                 data = serial_port.read(serial_port.in_waiting)
+                print('set_airplane_id_to_channel received data:', ''.join(f'{b:02X} ' for b in data))
                 packet_parser.add_data(data)
 
                 packets = packet_parser.parse_packets()
@@ -220,7 +227,7 @@ class PairManager:
         print(f"等待配对确认超时 (>{timeout}秒)")
         return False
 
-    def get_all_channel_id_from_board(self, serial_port: serial.Serial, channel=0, timeout: float = 2.0) -> dict[
+    def get_all_channel_id_from_board(self, serial_port: serial.Serial, channel=0, timeout: float = 5.0) -> dict[
         int, AirplaneId]:
         """
         从地面板读取所有通道的无人机ID
@@ -228,6 +235,11 @@ class PairManager:
         :param timeout: 超时时间（秒），默认2秒
         :return: 字典，键为通道号(0-15)，值为AirplaneId对象
         """
+
+        #
+        if serial_port.in_waiting > 0:
+            useless_data = serial_port.read(serial_port.in_waiting)
+            print('get_all_channel_id_from_board clear useless data:', ''.join(f'{b:02X} ' for b in useless_data))
 
         # 清空接收缓冲区和已配对通道记录
         serial_port.reset_input_buffer()
@@ -239,6 +251,7 @@ class PairManager:
             data=b'',  # 无需附加数据
             protocol_mode=PROTOCOL_SETADDR_PAIR_REQUEST
         )
+        print('get_all_channel_id_from_board request_packet:', ''.join(f'{b:02X} ' for b in request_packet))
 
         serial_port.write(request_packet)
 
@@ -252,6 +265,7 @@ class PairManager:
         while time.time() - start_time < timeout:
             if serial_port.in_waiting > 0:
                 data = serial_port.read(serial_port.in_waiting)
+                print('get_all_channel_id_from_board received data:', ''.join(f'{b:02X} ' for b in data))
                 packet_parser.add_data(data)
 
                 packets = packet_parser.parse_packets()

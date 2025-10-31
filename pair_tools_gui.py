@@ -595,7 +595,7 @@ class PairToolsGUI:
         # 在新线程中写入
         def write_thread():
             try:
-                success = self.pair_manager.set_airplane_id_to_channel(serial_port, channel, airplane_id, timeout=3.0)
+                success = self.pair_manager.set_airplane_id_to_channel(serial_port, channel, airplane_id, timeout=5.0)
 
                 if success:
                     # 更新通道信息
@@ -658,7 +658,7 @@ class PairToolsGUI:
                 # 从地面板读取所有通道的配对信息
                 channels_data = self.pair_manager.get_all_channel_id_from_board(
                     self.board_port,
-                    timeout=2.0
+                    timeout=5.0
                 )
 
                 # 更新内部数据
