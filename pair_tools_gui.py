@@ -89,7 +89,7 @@ class PairToolsGUI:
         baud_frame = ttk.Frame(conn_frame)
         baud_frame.pack(fill=tk.X, pady=2)
         ttk.Label(baud_frame, text="波特率:").pack(side=tk.LEFT, padx=5)
-        self.drone_baud_combo = ttk.Combobox(baud_frame, width=15, state='readonly',
+        self.drone_baud_combo = ttk.Combobox(baud_frame, width=15, state='normal',
                                              values=['9600', '19200', '38400', '57600', '115200'])
         self.drone_baud_combo.set('57600')
         self.drone_baud_combo.pack(side=tk.LEFT, padx=5)
@@ -205,9 +205,9 @@ class PairToolsGUI:
         baud_frame = ttk.Frame(conn_frame)
         baud_frame.pack(fill=tk.X, pady=2)
         ttk.Label(baud_frame, text="波特率:").pack(side=tk.LEFT, padx=5)
-        self.board_baud_combo = ttk.Combobox(baud_frame, width=15, state='readonly',
-                                             values=['9600', '19200', '38400', '57600', '115200'])
-        self.board_baud_combo.set('115200')
+        self.board_baud_combo = ttk.Combobox(baud_frame, width=15, state='normal',
+                                             values=['9600', '19200', '38400', '57600', '115200', '921600'])
+        self.board_baud_combo.set('921600')
         self.board_baud_combo.pack(side=tk.LEFT, padx=5)
 
         # 连接/断开按钮
