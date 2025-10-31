@@ -39,7 +39,7 @@ from .custom_protocol_packet import (
     PROTOCOL_SETADDR_PAIR,
     PROTOCOL_SETADDR_PAIR_ACK,
     PROTOCOL_SETADDR_PAIR_REQUEST,
-    PROTOCOL_SETADDR_PAIR_INFO,
+    PROTOCOL_SETADDR_PAIR_INFO, PROTOCOL_COMMAND_MSG,
 )
 
 
@@ -273,7 +273,16 @@ class PairManager:
                 print('get_all_channel_id_from_board received data:', ''.join(f'{b:02X} ' for b in data))
                 packet_parser.add_data(data)
 
+                print(''.join(f'{b:02X} ' for b in packet_parser.buffer))
+
                 packets = packet_parser.parse_packets()
+                print('get_all_channel_id_from_board parsed packets:', len(packets))
+                # filter by PROTOCOL_SETADDR_PAIR_INFO
+                for packet_info, raw_data, mavlink_messages in packets:
+                    if packet_info.get('protocol_mode') == PROTOCOL_COMMAND_MSG:
+                        continue
+                    print(packet_info)
+                print(received_packets)
                 for packet_info, raw_data, mavlink_messages in packets:
                     if packet_info['protocol_mode'] == PROTOCOL_SETADDR_PAIR_INFO:
                         payload = packet_info['payload']
