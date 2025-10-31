@@ -40,7 +40,7 @@ typedef struct {
 HEADER1 = 0xAA
 HEADER2 = 0xBB
 TAIL = 0xCC
-MAX_PAYLOAD_SIZE = 58
+# MAX_PAYLOAD_SIZE = 58
 
 # 协议识别码（以高位0xF0区域来表示）
 PROTOCOL_COMMAND_MSG = 0        # 普通命令消息 (0x00)
@@ -70,8 +70,8 @@ def wrap_packet(device_id: int, data: bytes, protocol_mode: int = PROTOCOL_COMMA
     if not (0 <= device_id <= 15):
         raise ValueError("Device ID must be between 0 and 15")
 
-    if len(data) > MAX_PAYLOAD_SIZE:
-        raise ValueError(f"Data size {len(data)} exceeds maximum {MAX_PAYLOAD_SIZE}")
+    # if len(data) > MAX_PAYLOAD_SIZE:
+    #     raise ValueError(f"Data size {len(data)} exceeds maximum {MAX_PAYLOAD_SIZE}")
 
     data_length = len(data)
 
@@ -267,8 +267,8 @@ class PacketParser:
         if not (0 <= device_id <= 15):
             raise ValueError(f"Invalid device ID: {device_id} (id_field=0x{id_field:02X}, protocol_mode=0x{protocol_mode:02X})")
 
-        if data_length > MAX_PAYLOAD_SIZE:
-            raise ValueError(f"Data length {data_length} exceeds maximum {MAX_PAYLOAD_SIZE}")
+        # if data_length > MAX_PAYLOAD_SIZE:
+        #     raise ValueError(f"Data length {data_length} exceeds maximum {MAX_PAYLOAD_SIZE}")
 
         # 检查包长度
         expected_length = 4 + data_length + 2
