@@ -58,6 +58,8 @@ class AirplaneId:
         mrx_ack_hex = ''.join(f'{b:02X}' for b in mrx_address_ack)
         mrx_p1_hex = ''.join(f'{b:02X}' for b in mrx_address_p1)
         self.addr_hex_str = f"{mtx_hex}-{mrx_ack_hex}-{mrx_p1_hex}"
+        # mtx_address+mrx_address_ack+mrx_address_p1
+        self.raw_mtx_struct = mtx_address + mrx_address_ack + mrx_address_p1
         pass
 
     pass
@@ -190,10 +192,9 @@ class PairManager:
         serial_port.reset_input_buffer()
 
         # 以 PROTOCOL_SETADDR_PAIR 模式发送 raw_pack 到地面板
-        # 根据协议文档: 当协议识别码为 SETADDR_PAIR 时，payload 为 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI=801 原始包字节
         packet = wrap_packet(
             device_id=channel,  # 使用通道号作为设备ID
-            data=airplane_id.raw_pack,  # mavlink 801消息的原始字节
+            data=airplane_id.raw_mtx_struct,
             protocol_mode=PROTOCOL_SETADDR_PAIR
         )
 
