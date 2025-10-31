@@ -166,11 +166,16 @@ class PacketParser:
                 parsed_packet = self._parse_single_packet(packet_data)
                 if parsed_packet:
                     # 处理payload：根据协议类型决定如何处理
-                    device_id = parsed_packet['device_id']
-                    protocol_mode = parsed_packet['protocol_mode']
-                    payload = parsed_packet['payload']
+                    device_id = parsed_packet.get('device_id')
+                    protocol_mode = parsed_packet.get('protocol_mode')
+                    payload = parsed_packet.get('payload')
 
                     mavlink_messages = None
+
+                    print('parse_packets parsed_packet', parsed_packet)
+                    print('parse_packets device_id', device_id)
+                    print('parse_packets protocol_mode', protocol_mode)
+                    print('parse_packets payload', payload)
 
                     # 只有COMMAND_MSG协议才包含MAVLink数据流
                     if protocol_mode == PROTOCOL_COMMAND_MSG:
