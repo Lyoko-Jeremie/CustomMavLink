@@ -569,9 +569,12 @@ class PairToolsGUI:
 
         # 获取选中的无人机ID
         item = selection[0]
-        values = self.drone_id_tree.item(item)['values']
-        index = int(values[0]) - 1
-        airplane_id = self.airplane_ids[index]
+        # 使用Treeview的行索引对应 airplane_ids 列表
+        item_index = self.drone_id_tree.index(item)
+        if not (0 <= item_index < len(self.airplane_ids)):
+            messagebox.showerror("错误", "选中项索引无效")
+            return
+        airplane_id = self.airplane_ids[item_index]
 
         # 获取目标通道 - 从Combobox获取，确保值在0-15范围内
         try:
