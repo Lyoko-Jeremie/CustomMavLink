@@ -22,6 +22,99 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 新增：命令任务与管理队列
+from dataclasses import dataclass, field
+from typing import Any, Callable, Tuple, Dict
+import queue
+import time
+
+@dataclass
+class CommandTask:
+    """表示要发送给单台无人机的命令任务。"""
+    drone_id: int
+    command: str
+    args: Tuple[Any, ...] = field(default_factory=tuple)
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+    retries: int = 1
+    on_done: Optional[Callable[[bool, Optional[Exception]], None]] = None
+
+class ManagerCommandQueue:
+    """单一串口管理器的串行命令队列。将所有任务串行化，避免并发写串口冲突。
+
+    manager: 需提供 manager.get_airplane(id) 返回飞机对象 或 manager.send_command(id, command, *args, **kwargs)
+    """
+    def __init__(self, manager, poll_interval=0.02):
+        self.manager = manager
+        self._q = queue.Queue()
+        self._stop = threading.Event()
+        self._worker = threading.Thread(target=self._run, daemon=True)
+        self._poll_interval = poll_interval
+        self._worker.start()
+
+    def enqueue(self, task: CommandTask):
+        self._q.put(task)
+
+    def _run(self):
+        while not self._stop.is_set():
+            try:
+                task: CommandTask = self._q.get(timeout=self._poll_interval)
+            except queue.Empty:
+                continue
+
+            attempt = 0
+            last_exc = None
+            while attempt <= (task.retries or 0):
+                try:
+                    attempt += 1
+                    airplane = None
+                    if hasattr(self.manager, 'get_airplane'):
+                        try:
+                            airplane = self.manager.get_airplane(task.drone_id)
+                        except Exception:
+                            airplane = None
+                    # 先尝试在 airplane 上反射方法
+                    if airplane is not None and hasattr(airplane, task.command):
+                        getattr(airplane, task.command)(*task.args, **task.kwargs)
+                    elif hasattr(self.manager, 'send_command'):
+                        # manager 层可能提供统一发送接口
+                        try:
+                            self.manager.send_command(task.drone_id, task.command, *task.args, **task.kwargs)
+                        except Exception:
+                            # 回退到 airplane 调用（如果 airplane 可用）
+                            if airplane is not None and hasattr(airplane, task.command):
+                                getattr(airplane, task.command)(*task.args, **task.kwargs)
+                            else:
+                                raise
+                    else:
+                        raise AttributeError(f"无人机对象或管理器不支持命令 {task.command}")
+
+                    # 成功
+                    if task.on_done:
+                        try:
+                            task.on_done(True, None)
+                        except Exception:
+                            pass
+                    break
+                except Exception as e:
+                    last_exc = e
+                    # 简短延迟后重试
+                    time.sleep(0.05)
+                    if attempt > (task.retries or 0):
+                        if task.on_done:
+                            try:
+                                task.on_done(False, e)
+                            except Exception:
+                                pass
+            try:
+                self._q.task_done()
+            except Exception:
+                pass
+
+    def stop(self, wait=True):
+        self._stop.set()
+        if wait and self._worker.is_alive():
+            self._worker.join(timeout=1.0)
+
 
 class DroneControlGUI:
     """无人机控制GUI类"""
@@ -34,6 +127,10 @@ class DroneControlGUI:
         self.manager = None
         self.drone: Optional[AirplaneOwl02] = None
         self.drone_id = 2
+
+        # 新增：多选复选框状态字典和命令队列引用（在 manager 初始化后创建队列）
+        self.id_check_vars = {}  # key: id -> tk.IntVar
+        self.cmd_queue: Optional[ManagerCommandQueue] = None
 
         self.setup_ui()
 
@@ -98,6 +195,9 @@ class DroneControlGUI:
         self.id_combo['values'] = [str(i) for i in range(0, 17)]
         self.id_combo.set(str(self.drone_id))
         self.id_combo.pack(side="left", padx=5)
+
+        # 新增：在初始化区域下面显示 0..16 的多选复选框，支持全选/反选
+        self._create_id_checkpanel(init_frame)
 
         # 初始化按钮
         # 初始化按钮
@@ -547,7 +647,7 @@ class DroneControlGUI:
 
         # 日志输出区域
         log_frame = ttk.LabelFrame(right_panel, text="日志输出", padding=10)
-        log_frame.pack(fill="both", expand=True, pady=5)
+        log_frame.pack(fill="both", expand=True)
 
         self.log_text = scrolledtext.ScrolledText(
             log_frame,
@@ -842,9 +942,19 @@ class DroneControlGUI:
             return
 
         def _takeoff():
-            self.log_message(f"正在起飞到 {height}cm...")
-            self.drone.takeoff(height)
-            self.log_message(f"✓ 起飞命令已发送 (高度: {height}cm)")
+            # 新增：通过命令队列广播起飞命令
+            if self.cmd_queue:
+                self.log_message(f"正在起飞到 {height}cm (通过队列)...")
+                task = CommandTask(
+                    drone_id=self.drone_id,
+                    command="takeoff",
+                    args=(height,),
+                    retries=3,
+                    on_done=lambda success, exc: self.log_message("✓ 起飞命令已发送 (通过队列)", "INFO") if success else self.log_message(f"起飞命令失败: {exc}", "ERROR")
+                )
+                self.cmd_queue.enqueue(task)
+            else:
+                self.log_message("命令队列未初始化", "ERROR")
 
         self.run_in_thread(_takeoff)
 
@@ -854,9 +964,18 @@ class DroneControlGUI:
             return
 
         def _land():
-            self.log_message("正在降落...")
-            self.drone.land()
-            self.log_message("✓ 降落命令已发送")
+            # 新增：通过命令队列广播降落命令
+            if self.cmd_queue:
+                self.log_message("正在降落 (通过队列)...")
+                task = CommandTask(
+                    drone_id=self.drone_id,
+                    command="land",
+                    retries=3,
+                    on_done=lambda success, exc: self.log_message("✓ 降落命令已发送 (通过队列)", "INFO") if success else self.log_message(f"降落命令失败: {exc}", "ERROR")
+                )
+                self.cmd_queue.enqueue(task)
+            else:
+                self.log_message("命令队列未初始化", "ERROR")
 
         self.run_in_thread(_land)
 
@@ -1403,6 +1522,96 @@ class DroneControlGUI:
         import os
         os._exit(0)
 
+    def _create_id_checkpanel(self, parent):
+        """在指定父容器上创建无人机ID的多选复选框面板（0..16），支持折叠和两行并排显示。"""
+        # 使用 LabelFrame 包裹，便于折叠与样式一致
+        panel = ttk.LabelFrame(parent, text="无人机列表（多选）", padding=4)
+        panel.pack(fill="x", pady=5)
+
+        # 顶部 header：说明文字 + 折叠按钮
+        header = tk.Frame(panel)
+        header.pack(fill="x")
+        tk.Label(header, text="选择无人机 ID:", font=("Arial", 10)).pack(side="left", padx=4)
+
+        # 折叠状态标志与折叠/展开按钮
+        self._id_check_visible = False  # 默认折叠，节省空间
+
+        def _toggle_visibility():
+            self._id_check_visible = not self._id_check_visible
+            if self._id_check_visible:
+                inner_frame.pack(fill="x", padx=2, pady=4)
+                toggle_btn.config(text="折叠")
+            else:
+                inner_frame.pack_forget()
+                toggle_btn.config(text="展开")
+
+        toggle_btn = tk.Button(header, text="展开", command=_toggle_visibility,
+                               bg="#FFC107", fg="black", font=("Arial", 9, "bold"), width=8)
+        toggle_btn.pack(side="right", padx=4)
+
+        # 内部框架，用于放置复选框（初始不显示）
+        inner_frame = tk.Frame(panel)
+        # inner_frame.pack(fill="x", padx=2, pady=4)  # 不默认显示
+
+        # 创建两行的网格布局，用较小的控件节省空间
+        cols = 9  # 两行分布：9 + 8 = 17
+        for i in range(17):
+            var = tk.IntVar()
+            chk = tk.Checkbutton(
+                inner_frame,
+                text=str(i),
+                variable=var,
+                font=("Arial", 9),
+                onvalue=1, offvalue=0,
+                command=lambda i=i, var=var: self.toggle_id_selection(i, var)
+            )
+            r = i // cols
+            c = i % cols
+            chk.grid(row=r, column=c, sticky="w", padx=2, pady=2)
+            self.id_check_vars[i] = var
+
+        # 操作按钮行（全选/反选 与 选中当前ID）
+        btn_frame = tk.Frame(inner_frame)
+        btn_frame.grid(row=3, column=0, columnspan=cols, pady=(6, 0))
+
+        def toggle_select_all():
+            any_unchecked = any(var.get() == 0 for var in self.id_check_vars.values())
+            for var in self.id_check_vars.values():
+                var.set(1 if any_unchecked else 0)
+
+        def select_current_id():
+            try:
+                cur = int(self.id_combo.get())
+            except Exception:
+                return
+            for i, var in self.id_check_vars.items():
+                var.set(1 if i == cur else 0)
+
+        tk.Button(btn_frame, text="全选/反选", command=toggle_select_all,
+                  bg="#8BC34A", fg="white", font=("Arial", 9), width=10).pack(side="left", padx=4)
+        tk.Button(btn_frame, text="选中当前ID", command=select_current_id,
+                  bg="#03A9F4", fg="white", font=("Arial", 9), width=12).pack(side="left", padx=4)
+
+        # 小提示：默认折叠，用户可以点击展开查看并选择
+        tk.Label(panel, text="(折叠) 点击展开查看并选择多个无人机", font=("Arial", 8), fg="#666666").pack(fill="x", padx=4, pady=(2, 4))
+
+    def toggle_id_selection(self, drone_id, var):
+        """处理单个ID复选框的选择或取消选择"""
+        if var.get() == 1:
+            # 选中，添加到命令队列
+            if self.cmd_queue:
+                task = CommandTask(
+                    drone_id=drone_id,
+                    command="arm",  # 示例命令，实际可根据需要调整
+                    retries=1,
+                    on_done=lambda success, exc: self.log_message(f"ID={drone_id} 命令已发送", "INFO") if success else self.log_message(f"ID={drone_id} 命令失败: {exc}", "ERROR")
+                )
+                self.cmd_queue.enqueue(task)
+        else:
+            # 取消选中，移除相关任务（如果存在）
+            if self.cmd_queue:
+                # 简单示例：这里假设任务是唯一的，实际情况可能需要更复杂的匹配和移除逻辑
+                self.cmd_queue.enqueue(CommandTask(drone_id=drone_id, command="disarm", retries=1))
 
 def main():
     """主函数"""
