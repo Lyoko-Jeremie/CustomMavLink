@@ -8,6 +8,7 @@ import threading
 import logging
 from datetime import datetime
 from typing import Optional
+import time
 from owl2.airplane_manager_owl02 import create_manager_with_serial, AirplaneOwl02
 try:
     # pyserial provides a cross-platform way to list serial ports
@@ -25,8 +26,6 @@ logger = logging.getLogger(__name__)
 # 新增：命令任务与管理队列
 from dataclasses import dataclass, field
 from typing import Any, Callable, Tuple, Dict
-import queue
-import time
 
 @dataclass
 class CommandTask:
@@ -39,81 +38,73 @@ class CommandTask:
     on_done: Optional[Callable[[bool, Optional[Exception]], None]] = None
 
 class ManagerCommandQueue:
-    """单一串口管理器的串行命令队列。将所有任务串行化，避免并发写串口冲突。
+    """并发命令队列：使用线程池并发处理任务，但对实际串口写操作使用锁序列化，避免冲突。
 
-    manager: 需提供 manager.get_airplane(id) 返回飞机对象 或 manager.send_command(id, command, *args, **kwargs)
+    这样可以并发发送/等待响应（IO并发），但保证写入串口的操作被保护。
     """
-    def __init__(self, manager, poll_interval=0.02):
+    def __init__(self, manager, max_workers: int = 8):
         self.manager = manager
-        self._q = queue.Queue()
-        self._stop = threading.Event()
-        self._worker = threading.Thread(target=self._run, daemon=True)
-        self._poll_interval = poll_interval
-        self._worker.start()
+        # 用于保护对串口的写操作（如果 manager/airplane 的方法执行串口写）
+        self._write_lock = threading.Lock()
+        # 线程池用于并发处理任务（发送/接收）
+        import concurrent.futures
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        self._shutdown = False
 
     def enqueue(self, task: CommandTask):
-        self._q.put(task)
+        if self._shutdown:
+            return
+        # 提交任务到线程池并立即返回（非阻塞）
+        self._executor.submit(self._process_task, task)
 
-    def _run(self):
-        while not self._stop.is_set():
+    def _process_task(self, task: CommandTask):
+        """在独立线程中处理单个任务。"""
+        attempt = 0
+        last_exc = None
+        while attempt <= (task.retries or 0):
             try:
-                task: CommandTask = self._q.get(timeout=self._poll_interval)
-            except queue.Empty:
-                continue
+                attempt += 1
+                airplane = None
+                if hasattr(self.manager, 'get_airplane'):
+                    try:
+                        airplane = self.manager.get_airplane(task.drone_id)
+                    except Exception:
+                        airplane = None
 
-            attempt = 0
-            last_exc = None
-            while attempt <= (task.retries or 0):
-                try:
-                    attempt += 1
-                    airplane = None
-                    if hasattr(self.manager, 'get_airplane'):
-                        try:
-                            airplane = self.manager.get_airplane(task.drone_id)
-                        except Exception:
-                            airplane = None
-                    # 先尝试在 airplane 上反射方法
+                # 在对串口进行写操作时加锁，防止并发写导致数据混淆
+                with self._write_lock:
                     if airplane is not None and hasattr(airplane, task.command):
                         getattr(airplane, task.command)(*task.args, **task.kwargs)
                     elif hasattr(self.manager, 'send_command'):
                         # manager 层可能提供统一发送接口
-                        try:
-                            self.manager.send_command(task.drone_id, task.command, *task.args, **task.kwargs)
-                        except Exception:
-                            # 回退到 airplane 调用（如果 airplane 可用）
-                            if airplane is not None and hasattr(airplane, task.command):
-                                getattr(airplane, task.command)(*task.args, **task.kwargs)
-                            else:
-                                raise
+                        self.manager.send_command(task.drone_id, task.command, *task.args, **task.kwargs)
                     else:
                         raise AttributeError(f"无人机对象或管理器不支持命令 {task.command}")
 
-                    # 成功
+                # 如果调用成功就调用回调并退出
+                if task.on_done:
+                    try:
+                        task.on_done(True, None)
+                    except Exception:
+                        pass
+                return
+            except Exception as e:
+                last_exc = e
+                time.sleep(0.05)
+                if attempt > (task.retries or 0):
                     if task.on_done:
                         try:
-                            task.on_done(True, None)
+                            task.on_done(False, e)
                         except Exception:
                             pass
-                    break
-                except Exception as e:
-                    last_exc = e
-                    # 简短延迟后重试
-                    time.sleep(0.05)
-                    if attempt > (task.retries or 0):
-                        if task.on_done:
-                            try:
-                                task.on_done(False, e)
-                            except Exception:
-                                pass
-            try:
-                self._q.task_done()
-            except Exception:
-                pass
+        # 结束
 
     def stop(self, wait=True):
-        self._stop.set()
-        if wait and self._worker.is_alive():
-            self._worker.join(timeout=1.0)
+        self._shutdown = True
+        try:
+            self._executor.shutdown(wait=wait)
+        except Exception:
+            pass
 
 
 class DroneControlGUI:
@@ -784,6 +775,16 @@ class DroneControlGUI:
                 self._populate_drone_ids()
             except Exception:
                 pass
+
+            # 新增：在主线程创建命令队列（自动创建）
+            try:
+                if hasattr(self, 'root'):
+                    self.root.after(0, lambda: setattr(self, 'cmd_queue', ManagerCommandQueue(self.manager)))
+                else:
+                    self.cmd_queue = ManagerCommandQueue(self.manager)
+            except Exception:
+                pass
+
             self.log_message("✓ 管理器初始化成功")
             self.update_status("管理器已初始化")
 
@@ -906,32 +907,22 @@ class DroneControlGUI:
         return True
 
     def arm(self):
-        """解锁无人机"""
-        if not self.check_drone():
+        """对已选中的无人机发送解锁（arm）命令（广播）"""
+        if not self.check_manager():
             return
-
-        def _arm():
-            self.log_message("正在解锁无人机...")
-            self.drone.arm()
-            self.log_message("✓ 解锁命令已发送")
-
-        self.run_in_thread(_arm)
+        # 广播 arm
+        self.broadcast_command('arm')
 
     def disarm(self):
-        """上锁无人机"""
-        if not self.check_drone():
+        """对已选中的无人机发送上锁（disarm）命令（广播）"""
+        if not self.check_manager():
             return
-
-        def _disarm():
-            self.log_message("正在上锁无人机...")
-            self.drone.disarm()
-            self.log_message("✓ 上锁命令已发送")
-
-        self.run_in_thread(_disarm)
+        # 广播 disarm
+        self.broadcast_command('disarm')
 
     def takeoff(self):
-        """起飞"""
-        if not self.check_drone():
+        """起飞（广播到已选中的所有无人机）"""
+        if not self.check_manager():
             return
 
         try:
@@ -941,155 +932,84 @@ class DroneControlGUI:
             messagebox.showerror("错误", "请输入有效的起飞高度(cm)")
             return
 
-        def _takeoff():
-            # 新增：通过命令队列广播起飞命令
-            if self.cmd_queue:
-                self.log_message(f"正在起飞到 {height}cm (通过队列)...")
-                task = CommandTask(
-                    drone_id=self.drone_id,
-                    command="takeoff",
-                    args=(height,),
-                    retries=3,
-                    on_done=lambda success, exc: self.log_message("✓ 起飞命令已发送 (通过队列)", "INFO") if success else self.log_message(f"起飞命令失败: {exc}", "ERROR")
-                )
-                self.cmd_queue.enqueue(task)
-            else:
-                self.log_message("命令队列未初始化", "ERROR")
-
-        self.run_in_thread(_takeoff)
+        # 直接广播（非阻塞）
+        self.broadcast_command('takeoff', height, retries=3)
 
     def land(self):
-        """降落"""
-        if not self.check_drone():
+        """降落（广播到已选中的所有无人机）"""
+        if not self.check_manager():
             return
-
-        def _land():
-            # 新增：通过命令队列广播降落命令
-            if self.cmd_queue:
-                self.log_message("正在降落 (通过队列)...")
-                task = CommandTask(
-                    drone_id=self.drone_id,
-                    command="land",
-                    retries=3,
-                    on_done=lambda success, exc: self.log_message("✓ 降落命令已发送 (通过队列)", "INFO") if success else self.log_message(f"降落命令失败: {exc}", "ERROR")
-                )
-                self.cmd_queue.enqueue(task)
-            else:
-                self.log_message("命令队列未初始化", "ERROR")
-
-        self.run_in_thread(_land)
+        self.broadcast_command('land', retries=3)
 
     def forward(self):
-        """前进"""
-        if not self.check_drone():
+        """前进（广播）"""
+        if not self.check_manager():
             return
-
         try:
             distance = int(self.move_distance.get())
         except ValueError:
             self.log_message("无效的移动距离", "ERROR")
             return
-
-        def _forward():
-            self.log_message(f"前进 {distance}cm...")
-            self.drone.forward(distance)
-            self.log_message(f"✓ 前进命令已发送")
-
-        self.run_in_thread(_forward)
+        self.broadcast_command('forward', distance)
 
     def back(self):
-        """后退"""
-        if not self.check_drone():
+        """后退（广播）"""
+        if not self.check_manager():
             return
-
         try:
             distance = int(self.move_distance.get())
         except ValueError:
             self.log_message("无效的移动距离", "ERROR")
             return
-
-        def _back():
-            self.log_message(f"后退 {distance}cm...")
-            self.drone.back(distance)
-            self.log_message(f"✓ 后退命令已发送")
-
-        self.run_in_thread(_back)
+        self.broadcast_command('back', distance)
 
     def left(self):
-        """左移"""
-        if not self.check_drone():
+        """左移（广播）"""
+        if not self.check_manager():
             return
-
         try:
             distance = int(self.move_distance.get())
         except ValueError:
             self.log_message("无效的移动距离", "ERROR")
             return
-
-        def _left():
-            self.log_message(f"左移 {distance}cm...")
-            self.drone.left(distance)
-            self.log_message(f"✓ 左移命令已发送")
-
-        self.run_in_thread(_left)
+        self.broadcast_command('left', distance)
 
     def right(self):
-        """右移"""
-        if not self.check_drone():
+        """右移（广播）"""
+        if not self.check_manager():
             return
-
         try:
             distance = int(self.move_distance.get())
         except ValueError:
             self.log_message("无效的移动距离", "ERROR")
             return
-
-        def _right():
-            self.log_message(f"右移 {distance}cm...")
-            self.drone.right(distance)
-            self.log_message(f"✓ 右移命令已发送")
-
-        self.run_in_thread(_right)
+        self.broadcast_command('right', distance)
 
     def up(self):
-        """上升"""
-        if not self.check_drone():
+        """上升（广播）"""
+        if not self.check_manager():
             return
-
         try:
             distance = int(self.move_distance.get())
         except ValueError:
             self.log_message("无效的移动距离", "ERROR")
             return
-
-        def _up():
-            self.log_message(f"上升 {distance}cm...")
-            self.drone.up(distance)
-            self.log_message(f"✓ 上升命令已发送")
-
-        self.run_in_thread(_up)
+        self.broadcast_command('up', distance)
 
     def down(self):
-        """下降"""
-        if not self.check_drone():
+        """下降（广播）"""
+        if not self.check_manager():
             return
-
         try:
             distance = int(self.move_distance.get())
         except ValueError:
             self.log_message("无效的移动距离", "ERROR")
             return
-
-        def _down():
-            self.log_message(f"下降 {distance}cm...")
-            self.drone.down(distance)
-            self.log_message(f"✓ 下降命令已发送")
-
-        self.run_in_thread(_down)
+        self.broadcast_command('down', distance)
 
     def goto(self):
         """飞往目标点"""
-        if not self.check_drone():
+        if not self.check_manager():
             return
 
         try:
@@ -1101,33 +1021,12 @@ class DroneControlGUI:
             messagebox.showerror("错误", "请输入有效的坐标值(cm)")
             return
 
-        def _goto():
-            self.log_message(f"飞往目标点 ({x}, {y}, {z})...")
-            self.drone.goto(x, y, z)
-            self.log_message(f"✓ Goto命令已发送 (X:{x}, Y:{y}, Z:{z})")
-
-        self.run_in_thread(_goto)
-
-    def update_color_preview(self, event=None):
-        """更新颜色预览框"""
-        try:
-            r = int(self.light_r.get())
-            g = int(self.light_g.get())
-            b = int(self.light_b.get())
-            # 限制范围0-255
-            r = max(0, min(255, r))
-            g = max(0, min(255, g))
-            b = max(0, min(255, b))
-            color = f"#{r:02X}{g:02X}{b:02X}"
-            self.color_preview.config(bg=color)
-        except ValueError:
-            pass  # 忽略无效输入
+        self.broadcast_command('goto', x, y, z)
 
     def set_led(self):
         """设置常亮模式"""
-        if not self.check_drone():
+        if not self.check_manager():
             return
-
         try:
             r = int(self.light_r.get())
             g = int(self.light_g.get())
@@ -1136,19 +1035,12 @@ class DroneControlGUI:
             self.log_message("无效的RGB值", "ERROR")
             messagebox.showerror("错误", "请输入有效的RGB值(0-255)")
             return
-
-        def _set_led():
-            self.log_message(f"设置常亮模式 RGB({r}, {g}, {b})...")
-            self.drone.led(r, g, b)
-            self.log_message(f"✓ 常亮模式命令已发送")
-
-        self.run_in_thread(_set_led)
+        self.broadcast_command('led', r, g, b)
 
     def set_breathe(self):
         """设置呼吸灯模式"""
-        if not self.check_drone():
+        if not self.check_manager():
             return
-
         try:
             r = int(self.light_r.get())
             g = int(self.light_g.get())
@@ -1157,19 +1049,12 @@ class DroneControlGUI:
             self.log_message("无效的RGB值", "ERROR")
             messagebox.showerror("错误", "请输入有效的RGB值(0-255)")
             return
-
-        def _set_breathe():
-            self.log_message(f"设置呼吸灯模式 RGB({r}, {g}, {b})...")
-            self.drone.bln(r, g, b)
-            self.log_message(f"✓ 呼吸灯模式命令已发送")
-
-        self.run_in_thread(_set_breathe)
+        self.broadcast_command('bln', r, g, b)
 
     def set_rainbow(self):
         """设置彩虹灯模式"""
-        if not self.check_drone():
+        if not self.check_manager():
             return
-
         try:
             r = int(self.light_r.get())
             g = int(self.light_g.get())
@@ -1178,13 +1063,7 @@ class DroneControlGUI:
             self.log_message("无效的RGB值", "ERROR")
             messagebox.showerror("错误", "请输入有效的RGB值(0-255)")
             return
-
-        def _set_rainbow():
-            self.log_message(f"设置彩虹灯模式 RGB({r}, {g}, {b})...")
-            self.drone.rainbow(r, g, b)
-            self.log_message(f"✓ 彩虹灯模式命令已发送")
-
-        self.run_in_thread(_set_rainbow)
+        self.broadcast_command('rainbow', r, g, b)
 
     def set_preset_color(self, r, g, b):
         """设置预设颜色"""
@@ -1200,205 +1079,87 @@ class DroneControlGUI:
         self.update_color_preview()
 
         # 如果无人机已连接，直接设置颜色
-        if not self.check_drone():
+        if not self.check_manager():
             return
+        self.broadcast_command('led', r, g, b)
 
-        def _set_color():
-            self.log_message(f"设置预设颜色 RGB({r}, {g}, {b})...")
-            self.drone.led(r, g, b)
-            self.log_message(f"✓ 预设颜色命令已发送")
-
-        self.run_in_thread(_set_color)
+    def update_color_preview(self, event=None):
+        """更新颜色预览框（在 RGB 输入变化时调用）。"""
+        try:
+            r = int(self.light_r.get())
+            g = int(self.light_g.get())
+            b = int(self.light_b.get())
+            # 限制范围0-255
+            r = max(0, min(255, r))
+            g = max(0, min(255, g))
+            b = max(0, min(255, b))
+            color = f"#{r:02X}{g:02X}{b:02X}"
+            try:
+                self.color_preview.config(bg=color)
+            except Exception:
+                pass
+        except Exception:
+            # 如果输入不是整数，忽略并不更新预览
+            pass
 
     def set_flight_mode(self, mode):
         """设置飞行模式"""
-        if not self.check_drone():
+        if not self.check_manager():
             return
-
         mode_names = {1: "常规模式", 2: "巡线模式", 3: "跟随模式"}
         mode_name = mode_names.get(mode, "未知模式")
-
-        def _set_mode():
-            self.log_message(f"设置飞行模式为 {mode_name}...")
-            self.drone.airplane_mode(mode)
-            self.log_message(f"✓ 飞行模式命令已发送 ({mode_name})")
-
-        self.run_in_thread(_set_mode)
-
-    def set_detect_preset(self, l_min, l_max, a_min, a_max, b_min, b_max):
-        """设置色块检测预设"""
-        # 更新LAB值的输入框
-        self.detect_l_min.delete(0, tk.END)
-        self.detect_l_min.insert(0, str(l_min))
-        self.detect_l_max.delete(0, tk.END)
-        self.detect_l_max.insert(0, str(l_max))
-        self.detect_a_min.delete(0, tk.END)
-        self.detect_a_min.insert(0, str(a_min))
-        self.detect_a_max.delete(0, tk.END)
-        self.detect_a_max.insert(0, str(a_max))
-        self.detect_b_min.delete(0, tk.END)
-        self.detect_b_min.insert(0, str(b_min))
-        self.detect_b_max.delete(0, tk.END)
-        self.detect_b_max.insert(0, str(b_max))
-
-        self.log_message(f"预设色块检测参数已填充")
-
-    def apply_color_detect(self):
-        """应用色块检测设置"""
-        if not self.check_drone():
-            return
-
-        try:
-            l_min = int(self.detect_l_min.get())
-            l_max = int(self.detect_l_max.get())
-            a_min = int(self.detect_a_min.get())
-            a_max = int(self.detect_a_max.get())
-            b_min = int(self.detect_b_min.get())
-            b_max = int(self.detect_b_max.get())
-        except ValueError:
-            self.log_message("无效的LAB值", "ERROR")
-            messagebox.showerror("错误", "请输入有效的LAB值")
-            return
-
-        def _apply():
-            self.log_message(f"应用色块检测设置 L({l_min}-{l_max}) A({a_min}-{a_max}) B({b_min}-{b_max})...")
-            self.drone.set_color_detect_mode(l_min, l_max, a_min, a_max, b_min, b_max)
-            self.log_message("✓ 色块检测设置已应用")
-
-        self.run_in_thread(_apply)
+        self.broadcast_command('airplane_mode', mode)
 
     def rotate_cw(self):
         """顺时针旋转指定角度（从界面读取）"""
-        if not self.check_drone():
+        if not self.check_manager():
             return
-
         try:
             degree = int(self.rotate_angle.get())
         except Exception:
             self.log_message("无效的旋转角度", "ERROR")
             messagebox.showerror("错误", "请输入有效的旋转角度(整数)")
             return
-
-        # 限制到 0..360
         degree = max(0, min(360, degree))
-
-        def _cw():
-            self.log_message(f"顺时针旋转 {degree} 度...")
-            # 使用飞机对象的 cw 方法
-            try:
-                if hasattr(self.drone, 'cw'):
-                    self.drone.cw(degree)
-                elif hasattr(self.drone, 'rotate'):
-                    # 一些实现使用 rotate() 默认为顺时针
-                    self.drone.rotate(degree)
-                else:
-                    raise AttributeError('drone 不支持 cw/rotate 方法')
-                self.log_message("✓ 顺时针旋转命令已发送")
-            except Exception as e:
-                self.log_message(f"发送旋转命令出错: {e}", "ERROR")
-
-        self.run_in_thread(_cw)
+        # 广播 cw/rotate 命令（优先 cw）
+        self.broadcast_command('cw', degree)
 
     def rotate_ccw(self):
         """逆时针旋转指定角度（从界面读取）"""
-        if not self.check_drone():
+        if not self.check_manager():
             return
-
         try:
             degree = int(self.rotate_angle.get())
         except Exception:
             self.log_message("无效的旋转角度", "ERROR")
             messagebox.showerror("错误", "请输入有效的旋转角度(整数)")
             return
-
         degree = max(0, min(360, degree))
-
-        def _ccw():
-            self.log_message(f"逆时针旋转 {degree} 度...")
-            try:
-                if hasattr(self.drone, 'ccw'):
-                    self.drone.ccw(degree)
-                elif hasattr(self.drone, 'rotate'):
-                    # 如果只有 rotate 接口且默认顺时针，可以调用 rotate(-degree) 但 rotate 接口可能不接受负数
-                    # 这里尝试调用 rotate 并希望实现提供 ccw 方法；如无则抛错
-                    raise AttributeError('drone 不支持 ccw 方法')
-                self.log_message("✓ 逆时针旋转命令已发送")
-            except Exception as e:
-                self.log_message(f"发送旋转命令出错: {e}", "ERROR")
-
-        self.run_in_thread(_ccw)
+        self.broadcast_command('ccw', degree)
 
     def flip_forward(self):
-        """前翻 - 调用 drone.flip_forward()"""
-        if not self.check_drone():
+        """前翻 - 广播到已选无人机"""
+        if not self.check_manager():
             return
-
-        def _flip():
-            self.log_message("执行前翻...")
-            try:
-                if hasattr(self.drone, 'flip_forward'):
-                    self.drone.flip_forward()
-                    self.log_message("✓ 前翻命令已发送")
-                else:
-                    raise AttributeError('drone 不支持 flip_forward 方法')
-            except Exception as e:
-                self.log_message(f"发送前翻命令出错: {e}", "ERROR")
-
-        self.run_in_thread(_flip)
+        self.broadcast_command('flip_forward')
 
     def flip_back(self):
-        """后翻 - 调用 drone.flip_back()"""
-        if not self.check_drone():
+        """后翻 - 广播到已选无人机"""
+        if not self.check_manager():
             return
-
-        def _flip():
-            self.log_message("执行后翻...")
-            try:
-                if hasattr(self.drone, 'flip_back'):
-                    self.drone.flip_back()
-                    self.log_message("✓ 后翻命令已发送")
-                else:
-                    raise AttributeError('drone 不支持 flip_back 方法')
-            except Exception as e:
-                self.log_message(f"发送后翻命令出错: {e}", "ERROR")
-
-        self.run_in_thread(_flip)
+        self.broadcast_command('flip_back')
 
     def flip_left(self):
-        """左翻 - 调用 drone.flip_left()"""
-        if not self.check_drone():
+        """左翻 - 广播到已选无人机"""
+        if not self.check_manager():
             return
-
-        def _flip():
-            self.log_message("执行左翻...")
-            try:
-                if hasattr(self.drone, 'flip_left'):
-                    self.drone.flip_left()
-                    self.log_message("✓ 左翻命令已发送")
-                else:
-                    raise AttributeError('drone 不支持 flip_left 方法')
-            except Exception as e:
-                self.log_message(f"发送左翻命令出错: {e}", "ERROR")
-
-        self.run_in_thread(_flip)
+        self.broadcast_command('flip_left')
 
     def flip_right(self):
-        """右翻 - 调用 drone.flip_right()"""
-        if not self.check_drone():
+        """右翻 - 广播到已选无人机"""
+        if not self.check_manager():
             return
-
-        def _flip():
-            self.log_message("执行右翻...")
-            try:
-                if hasattr(self.drone, 'flip_right'):
-                    self.drone.flip_right()
-                    self.log_message("✓ 右翻命令已发送")
-                else:
-                    raise AttributeError('drone 不支持 flip_right 方法')
-            except Exception as e:
-                self.log_message(f"发送右翻命令出错: {e}", "ERROR")
-
-        self.run_in_thread(_flip)
+        self.broadcast_command('flip_right')
 
     def toggle_heartbeat(self):
         """切换心跳包发送"""
@@ -1436,6 +1197,13 @@ class DroneControlGUI:
                     self.log_message("✓ 串口已断开")
                 except Exception as e:
                     self.log_message(f"断开串口时出错: {e}", "ERROR")
+
+            # 停止命令队列
+            if getattr(self, 'cmd_queue', None):
+                try:
+                    self.cmd_queue.stop()
+                except Exception:
+                    pass
 
             # 重置对象引用
             self.manager = None
@@ -1486,6 +1254,12 @@ class DroneControlGUI:
             finally:
                 self.manager = None
                 self.drone = None
+                # 停止命令队列（如果存在）
+                if getattr(self, 'cmd_queue', None):
+                    try:
+                        self.cmd_queue.stop()
+                    except Exception:
+                        pass
                 # 清除当前无人机显示
                 try:
                     if hasattr(self, 'root'):
@@ -1596,25 +1370,104 @@ class DroneControlGUI:
         tk.Label(panel, text="(折叠) 点击展开查看并选择多个无人机", font=("Arial", 8), fg="#666666").pack(fill="x", padx=4, pady=(2, 4))
 
     def toggle_id_selection(self, drone_id, var):
-        """处理单个ID复选框的选择或取消选择"""
-        if var.get() == 1:
-            # 选中，添加到命令队列
-            if self.cmd_queue:
-                task = CommandTask(
-                    drone_id=drone_id,
-                    command="arm",  # 示例命令，实际可根据需要调整
-                    retries=1,
-                    on_done=lambda success, exc: self.log_message(f"ID={drone_id} 命令已发送", "INFO") if success else self.log_message(f"ID={drone_id} 命令失败: {exc}", "ERROR")
-                )
-                self.cmd_queue.enqueue(task)
-        else:
-            # 取消选中，移除相关任务（如果存在）
-            if self.cmd_queue:
-                # 简单示例：这里假设任务是唯一的，实际情况可能需要更复杂的匹配和移除逻辑
-                self.cmd_queue.enqueue(CommandTask(drone_id=drone_id, command="disarm", retries=1))
+        """处理单个ID复选框的选择或取消选择（仅做选择管理，不自动发送命令）"""
+        # 仅记录选择/取消，不进行自动命令发送
+        # 若需在选中变化时立即反映到界面或触发其他逻辑，可在此处加入事件通知
+        return
+
+    def check_manager(self):
+        """确保 manager 已初始化（用于广播场景）。"""
+        if not self.manager:
+            self.log_message("请先初始化管理器", "ERROR")
+            messagebox.showwarning("警告", "请先初始化管理器")
+            return False
+        return True
+
+    def get_selected_drone_ids(self):
+        """返回当前被勾选的无人机ID列表（整数）。"""
+        return [i for i, var in self.id_check_vars.items() if var.get()]
+
+    def broadcast_command(self, command_name, *args, retries=1, **kwargs):
+        """将同一命令广播发送到所有已选中的无人机（非阻塞）。
+
+        任务会提交到 ManagerCommandQueue，执行时对串口写入进行加锁以避免冲突。
+        """
+        if not self.check_manager():
+            return
+
+        ids = self.get_selected_drone_ids()
+        if not ids:
+            self.log_message("未选择任何无人机（请展开列表并选择）", "WARNING")
+            return
+
+        # 延迟创建队列（如果尚未创建）
+        if not getattr(self, 'cmd_queue', None):
+            try:
+                self.cmd_queue = ManagerCommandQueue(self.manager)
+            except Exception as e:
+                self.log_message(f"无法创建命令队列: {e}", "ERROR")
+                return
+
+        for did in ids:
+            def make_cb(d=did, cmd=command_name):
+                def cb(success, exc):
+                    # 在主线程更新 UI 日志
+                    try:
+                        if hasattr(self, 'root'):
+                            self.root.after(0, lambda: self.log_message(f"{'✓' if success else '✗'} 无人机 {d} 执行 {cmd} {'成功' if success else '失败: '+str(exc)}", "INFO" if success else "ERROR"))
+                        else:
+                            self.log_message(f"{'✓' if success else '✗'} 无人机 {d} 执行 {cmd}", "INFO" if success else "ERROR")
+                    except Exception:
+                        pass
+                return cb
+
+            task = CommandTask(drone_id=did, command=command_name, args=args, kwargs=kwargs, retries=retries, on_done=make_cb())
+            self.cmd_queue.enqueue(task)
+
+        self.log_message(f"已向 {len(ids)} 台无人机广播命令: {command_name}")
+
+    def set_detect_preset(self, l_min, l_max, a_min, a_max, b_min, b_max):
+        """设置色块检测预设并更新输入框。"""
+        try:
+            self.detect_l_min.delete(0, tk.END)
+            self.detect_l_min.insert(0, str(l_min))
+            self.detect_l_max.delete(0, tk.END)
+            self.detect_l_max.insert(0, str(l_max))
+            self.detect_a_min.delete(0, tk.END)
+            self.detect_a_min.insert(0, str(a_min))
+            self.detect_a_max.delete(0, tk.END)
+            self.detect_a_max.insert(0, str(a_max))
+            self.detect_b_min.delete(0, tk.END)
+            self.detect_b_min.insert(0, str(b_min))
+            self.detect_b_max.delete(0, tk.END)
+            self.detect_b_max.insert(0, str(b_max))
+            self.log_message("已填充色块检测预设")
+        except Exception as e:
+            self.log_message(f"设置色块检测预设出错: {e}", "ERROR")
+
+    def apply_color_detect(self):
+        """读取 LAB 值并广播到已选无人机，调用各无人机的 set_color_detect_mode 方法（非阻塞）。"""
+        if not self.check_manager():
+            return
+
+        try:
+            l_min = int(self.detect_l_min.get())
+            l_max = int(self.detect_l_max.get())
+            a_min = int(self.detect_a_min.get())
+            a_max = int(self.detect_a_max.get())
+            b_min = int(self.detect_b_min.get())
+            b_max = int(self.detect_b_max.get())
+        except ValueError:
+            self.log_message("无效的LAB值", "ERROR")
+            messagebox.showerror("错误", "请输入有效的LAB值")
+            return
+
+        # 广播到已选无人机
+        self.broadcast_command('set_color_detect_mode', l_min, l_max, a_min, a_max, b_min, b_max)
+        self.log_message(f"已广播色块检测设置 L({l_min}-{l_max}) A({a_min}-{a_max}) B({b_min}-{b_max})")
 
 def main():
-    """主函数"""
+    """程序入口：创建 Tk 应用并运行 DroneControlGUI 界面。"""
     root = tk.Tk()
     app = DroneControlGUI(root)
     root.protocol("WM_DELETE_WINDOW", app.on_closing)
