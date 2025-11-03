@@ -172,10 +172,10 @@ class PacketParser:
 
                     mavlink_messages = None
 
-                    print('parse_packets parsed_packet', parsed_packet)
-                    print('parse_packets device_id', device_id)
-                    print('parse_packets protocol_mode', protocol_mode)
-                    print('parse_packets payload', payload)
+                    # print('parse_packets parsed_packet', parsed_packet)
+                    # print('parse_packets device_id', device_id)
+                    # print('parse_packets protocol_mode', protocol_mode)
+                    # print('parse_packets payload', payload)
 
                     # 只有COMMAND_MSG协议才包含MAVLink数据流
                     if protocol_mode == PROTOCOL_COMMAND_MSG:
@@ -218,16 +218,16 @@ class PacketParser:
                 if msg:
                     mavlink_messages.append(msg)
             except Exception as e:
-                # MAVLink解析错误，继续处理下一个字节
-                print(f"MAVLink parsing error for device {device_id}: {e}")
-                import traceback, sys, inspect
-                traceback.print_exc(file=sys.stdout)
-                for frame in inspect.stack()[1:]:
-                    fname = frame.filename
-                    lineno = frame.lineno
-                    func = frame.function
-                    ctx = frame.code_context[0].strip() if frame.code_context else ''
-                    print(f"    File \"{fname}\", line {lineno}, in {func} -> {ctx}")
+                # # MAVLink解析错误，继续处理下一个字节
+                # print(f"MAVLink parsing error for device {device_id}: {e}")
+                # import traceback, sys, inspect
+                # traceback.print_exc(file=sys.stdout)
+                # for frame in inspect.stack()[1:]:
+                #     fname = frame.filename
+                #     lineno = frame.lineno
+                #     func = frame.function
+                #     ctx = frame.code_context[0].strip() if frame.code_context else ''
+                #     print(f"    File \"{fname}\", line {lineno}, in {func} -> {ctx}")
                 continue
 
         return mavlink_messages
