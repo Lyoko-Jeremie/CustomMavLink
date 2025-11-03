@@ -183,7 +183,8 @@ class DroneControlGUI:
         # 使用下拉框选择无人机ID（默认0-16）。如果初始化了manager，会尝试使用管理器提供的列表刷新此下拉框。
         self.id_combo = ttk.Combobox(id_frame, width=10, state="readonly")
         # 预填默认选项（0..16）并设置默认值为2
-        self.id_combo['values'] = [str(i) for i in range(0, 17)]
+        # 移除无人机 16，默认只显示 0..15
+        self.id_combo['values'] = [str(i) for i in range(0, 16)]
         self.id_combo.set(str(self.drone_id))
         self.id_combo.pack(side="left", padx=5)
 
@@ -835,12 +836,12 @@ class DroneControlGUI:
                     except Exception:
                         raw_ids = []
 
-                # 规范化为整数，过滤到 0..16 范围，并排序去重
+                # 规范化为整数，过滤到 0..15 范围，并排序去重（移除 ID 16）
                 num_ids = []
                 for r in raw_ids:
                     try:
                         v = int(r)
-                        if 0 <= v <= 16:
+                        if 0 <= v <= 15:
                             num_ids.append(v)
                     except Exception:
                         continue
@@ -851,7 +852,8 @@ class DroneControlGUI:
                 self.log_message(f"获取无人机列表时出错: {e}", "WARNING")
 
         if not ids:
-            ids = [str(i) for i in range(0, 17)]
+            # 默认只显示 0..15（移除 16）
+            ids = [str(i) for i in range(0, 16)]
 
         try:
             self.id_combo['values'] = ids
@@ -1297,7 +1299,7 @@ class DroneControlGUI:
         os._exit(0)
 
     def _create_id_checkpanel(self, parent):
-        """在指定父容器上创建无人机ID的多选复选框面板（0..16），支持折叠和两行并排显示。"""
+        """在指定父容器上创建无人机ID的多选复选框面板（0..15），支持折叠和两行并排显示。"""
         # 使用 LabelFrame 包裹，便于折叠与样式一致
         panel = ttk.LabelFrame(parent, text="无人机列表（多选）", padding=4)
         panel.pack(fill="x", pady=5)
@@ -1327,9 +1329,9 @@ class DroneControlGUI:
         inner_frame = tk.Frame(panel)
         # inner_frame.pack(fill="x", padx=2, pady=4)  # 不默认显示
 
-        # 创建两行的网格布局，用较小的控件节省空间
-        cols = 9  # 两行分布：9 + 8 = 17
-        for i in range(17):
+        # 创建两行的网格布局（0..15，共16项），分为两行各8列
+        cols = 8  # 两行分布：8 + 8 = 16
+        for i in range(16):
             var = tk.IntVar()
             chk = tk.Checkbutton(
                 inner_frame,
@@ -1346,7 +1348,8 @@ class DroneControlGUI:
 
         # 操作按钮行（全选/反选 与 选中当前ID）
         btn_frame = tk.Frame(inner_frame)
-        btn_frame.grid(row=3, column=0, columnspan=cols, pady=(6, 0))
+        # 放在第 2 行（0/1 为复选框两行），按钮占据整个列跨度
+        btn_frame.grid(row=2, column=0, columnspan=cols, pady=(6, 0))
 
         def toggle_select_all():
             any_unchecked = any(var.get() == 0 for var in self.id_check_vars.values())
