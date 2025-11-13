@@ -370,6 +370,33 @@ class MultiDroneControlGUI:
             bg="#3498DB", fg="white", font=("Arial", 8, "bold"), width=10, height=1
         ).grid(row=4, column=1, padx=2, pady=2)
 
+        # Goto定点飞行控制
+        goto_frame = ttk.LabelFrame(parent, text="编队定点飞行 (Goto)", padding=5)
+        goto_frame.pack(fill="x", pady=5)
+
+        coords_frame = tk.Frame(goto_frame)
+        coords_frame.pack(fill="x", pady=2)
+
+        tk.Label(coords_frame, text="X(cm):").pack(side="left", padx=2)
+        self.global_goto_x = tk.Entry(coords_frame, width=8)
+        self.global_goto_x.insert(0, "100")
+        self.global_goto_x.pack(side="left", padx=2)
+
+        tk.Label(coords_frame, text="Y(cm):").pack(side="left", padx=2)
+        self.global_goto_y = tk.Entry(coords_frame, width=8)
+        self.global_goto_y.insert(0, "100")
+        self.global_goto_y.pack(side="left", padx=2)
+
+        tk.Label(coords_frame, text="Z(cm):").pack(side="left", padx=2)
+        self.global_goto_z = tk.Entry(coords_frame, width=8)
+        self.global_goto_z.insert(0, "150")
+        self.global_goto_z.pack(side="left", padx=2)
+
+        tk.Button(
+            goto_frame, text="飞往目标点", command=self.global_goto,
+            bg="#673AB7", fg="white", font=("Arial", 9, "bold"), width=15, height=2
+        ).pack(pady=3)
+
         # 灯光控制
         light_frame = ttk.LabelFrame(parent, text="编队灯光", padding=5)
         light_frame.pack(fill="x", pady=5)
@@ -637,6 +664,32 @@ class MultiDroneControlGUI:
             row3, text="彩虹", command=lambda: self.single_rainbow(drone_id),
             bg="#E91E63", fg="white", font=("Arial", 8), width=5, height=1
         ).pack(side="left", padx=1)
+
+        # 第四行 - Goto定点飞行控制
+        row4 = tk.Frame(quick_frame)
+        row4.pack(fill="x", pady=2)
+
+        tk.Label(row4, text="Goto:", font=("Arial", 8, "bold")).pack(side="left", padx=2)
+
+        tk.Label(row4, text="X:", font=("Arial", 8)).pack(side="left")
+        panel['goto_x'] = tk.Entry(row4, width=5)
+        panel['goto_x'].insert(0, "100")
+        panel['goto_x'].pack(side="left", padx=1)
+
+        tk.Label(row4, text="Y:", font=("Arial", 8)).pack(side="left")
+        panel['goto_y'] = tk.Entry(row4, width=5)
+        panel['goto_y'].insert(0, "100")
+        panel['goto_y'].pack(side="left", padx=1)
+
+        tk.Label(row4, text="Z:", font=("Arial", 8)).pack(side="left")
+        panel['goto_z'] = tk.Entry(row4, width=5)
+        panel['goto_z'].insert(0, "150")
+        panel['goto_z'].pack(side="left", padx=1)
+
+        tk.Button(
+            row4, text="飞往", command=lambda: self.single_goto(drone_id),
+            bg="#673AB7", fg="white", font=("Arial", 8, "bold"), width=6, height=1
+        ).pack(side="left", padx=2)
 
         self.drone_panels[drone_id] = panel
 
@@ -922,6 +975,18 @@ class MultiDroneControlGUI:
             except ValueError:
                 self.log_message(f"无人机 {drone_id}: 无效的RGB值", "ERROR")
 
+    def single_goto(self, drone_id):
+        """单机定点飞行"""
+        panel = self.drone_panels.get(drone_id)
+        if panel:
+            try:
+                x = int(panel['goto_x'].get())
+                y = int(panel['goto_y'].get())
+                z = int(panel['goto_z'].get())
+                self.single_command(drone_id, 'goto', x, y, z)
+            except ValueError:
+                self.log_message(f"无人机 {drone_id}: 无效的坐标值", "ERROR")
+
     # 全局命令
     def global_takeoff(self):
         """全局起飞"""
@@ -1010,6 +1075,17 @@ class MultiDroneControlGUI:
             self.global_command('rainbow', r, g, b)
         except ValueError:
             self.log_message("无效的RGB值", "ERROR")
+
+    def global_goto(self):
+        """全局定点飞行"""
+        try:
+            x = int(self.global_goto_x.get())
+            y = int(self.global_goto_y.get())
+            z = int(self.global_goto_z.get())
+            self.global_command('goto', x, y, z)
+        except ValueError:
+            self.log_message("无效的坐标值", "ERROR")
+            messagebox.showerror("错误", "请输入有效的坐标值(cm)")
 
     # ==================== 辅助方法 ====================
 
