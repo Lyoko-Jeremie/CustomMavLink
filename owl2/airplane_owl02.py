@@ -390,7 +390,7 @@ class AirplaneOwl02(IAirplane):
         print('ack_timestamp', ack_timestamp)
 
         with self.command_lock:
-            print('with self.command_lock')
+            # print('with self.command_lock')
 
             # 根据命令ID和时间戳精确匹配命令实例
             updated = False
@@ -468,7 +468,8 @@ class AirplaneOwl02(IAirplane):
             mavlink2.MAVLINK_MSG_ID_SYS_STATUS,
             mavlink2.MAVLINK_MSG_ID_HEARTBEAT,
         ]:
-            print('Parsed message ID:', message)
+            # print('Parsed message ID:', message)
+            pass
 
         # 查找并调用对应的解析函数
         parse_func = self.parse_table.get(msg_id)

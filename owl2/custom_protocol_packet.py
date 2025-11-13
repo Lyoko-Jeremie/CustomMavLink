@@ -172,7 +172,7 @@ class PacketParser:
 
                     mavlink_messages = None
 
-                    print('parse_packets parsed_packet', parsed_packet)
+                    # print('parse_packets parsed_packet', parsed_packet)
                     # print('parse_packets device_id', device_id)
                     # print('parse_packets protocol_mode', protocol_mode)
                     # print('parse_packets payload', payload)
@@ -300,7 +300,7 @@ class PacketParser:
 def send_mavlink_packet_by_custom_protocol(serial_port, device_id: int, mav_msg):
     """发送MavLink数据包"""
     # 创建MavLink对象来序列化消息
-    print('send_mavlink_packet_by_custom_protocol device_id', device_id, mav_msg)
+    # print('send_mavlink_packet_by_custom_protocol device_id', device_id, mav_msg)
     mav = mavlink2.MAVLink(None)
     mav_bytes = mav_msg.pack(mav)
     wrapped = wrap_packet(device_id, mav_bytes)
