@@ -172,7 +172,7 @@ class PacketParser:
 
                     mavlink_messages = None
 
-                    # print('parse_packets parsed_packet', parsed_packet)
+                    print('parse_packets parsed_packet', parsed_packet)
                     # print('parse_packets device_id', device_id)
                     # print('parse_packets protocol_mode', protocol_mode)
                     # print('parse_packets payload', payload)
