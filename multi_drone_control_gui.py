@@ -126,41 +126,41 @@ class MultiDroneControlGUI:
         )
         title_label.pack(fill="x")
 
-        # 主容器 - 分为上下两部分
+        # 主容器 - 分为左右两部分
         main_container = tk.Frame(self.root)
         main_container.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # 上半部分：初始化和全局控制
-        top_section = tk.Frame(main_container)
-        top_section.pack(fill="x", pady=(0, 10))
+        # 左侧：初始化和全局控制（上下布局）
+        left_section = tk.Frame(main_container)
+        left_section.pack(side="left", fill="both", expand=False, padx=(0, 5))
 
-        # 下半部分：无人机面板和日志
-        bottom_section = tk.Frame(main_container)
-        bottom_section.pack(fill="both", expand=True)
+        # 右侧：无人机面板和日志（上下布局）
+        right_section = tk.Frame(main_container)
+        right_section.pack(side="right", fill="both", expand=True, padx=(5, 0))
 
-        # ==================== 上半部分布局 ====================
-        # 左侧：初始化区域
-        init_frame = ttk.LabelFrame(top_section, text="系统初始化", padding=10)
-        init_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
+        # ==================== 左侧布局（上下） ====================
+        # 上部：初始化区域
+        init_frame = ttk.LabelFrame(left_section, text="系统初始化", padding=10)
+        init_frame.pack(side="top", fill="x", pady=(0, 5))
 
         self._create_init_panel(init_frame)
 
-        # 右侧：全局控制区域
-        global_control_frame = ttk.LabelFrame(top_section, text="全局控制 (对所有选中的无人机)", padding=10)
-        global_control_frame.pack(side="right", fill="both", expand=True, padx=(5, 0))
+        # 下部：全局控制区域
+        global_control_frame = ttk.LabelFrame(left_section, text="全局控制 (对所有选中的无人机)", padding=10)
+        global_control_frame.pack(side="top", fill="both", expand=True, pady=(5, 0))
 
         self._create_global_control_panel(global_control_frame)
 
-        # ==================== 下半部分布局 ====================
-        # 左侧：无人机面板区域（可滚动）
-        drones_panel_frame = ttk.LabelFrame(bottom_section, text="无人机控制面板", padding=10)
-        drones_panel_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
+        # ==================== 右侧布局（上下） ====================
+        # 上部：无人机面板区域（可滚动）
+        drones_panel_frame = ttk.LabelFrame(right_section, text="无人机控制面板", padding=10)
+        drones_panel_frame.pack(side="top", fill="both", expand=True, pady=(0, 5))
 
         self._create_drones_panel(drones_panel_frame)
 
-        # 右侧：日志输出区域
-        log_frame = ttk.LabelFrame(bottom_section, text="系统日志", padding=10)
-        log_frame.pack(side="right", fill="both", expand=True, padx=(5, 0))
+        # 下部：日志输出区域
+        log_frame = ttk.LabelFrame(right_section, text="系统日志", padding=10)
+        log_frame.pack(side="top", fill="both", expand=False, pady=(5, 0))
 
         self._create_log_panel(log_frame)
 
