@@ -148,7 +148,6 @@ class AirplaneOwl02(IAirplane):
             self.command_sequence += 1
             return self.command_sequence
 
-    # TODO  bug: 在前一个包的重试过程中，如果再发一次同一个指令，会导致后续任何指令都无法发出
     def _send_command_with_retry(self, command: int, param1=0, param2=0, param3=0,
                                  param4=0, param5=0, param6=0, param7=0,
                                  wait_for_finish=False, timeout=5.0, async_mode=None):
@@ -589,6 +588,7 @@ class AirplaneOwl02(IAirplane):
             param1=1,
             param2=distance,
             param3=100,  # 默认速度100cm/s
+            param4=0,
             wait_for_finish=False  # 改为非阻塞
         )
 
@@ -603,6 +603,7 @@ class AirplaneOwl02(IAirplane):
             param1=2,
             param2=distance,
             param3=100,
+            param4=0,
             wait_for_finish=False
         )
 
@@ -617,6 +618,7 @@ class AirplaneOwl02(IAirplane):
             param1=3,
             param2=distance,
             param3=100,
+            param4=0,
             wait_for_finish=False
         )
 
@@ -631,6 +633,7 @@ class AirplaneOwl02(IAirplane):
             param1=4,
             param2=distance,
             param3=100,
+            param4=0,
             wait_for_finish=False
         )
 
@@ -645,6 +648,7 @@ class AirplaneOwl02(IAirplane):
             param1=5,
             param2=distance,
             param3=100,
+            param4=0,
             wait_for_finish=False
         )
 
@@ -659,6 +663,7 @@ class AirplaneOwl02(IAirplane):
             param1=6,
             param2=distance,
             param3=100,
+            param4=0,
             wait_for_finish=False
         )
 
@@ -733,7 +738,14 @@ class AirplaneOwl02(IAirplane):
         :param high: 高度，单位cm
         """
         logger.info(f"Setting altitude for device {self.target_channel_id} to {high}cm")
-        self.goto(0, 0, high)
+        self._send_command_with_retry(
+            command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
+            param1=1,
+            param2=high,
+            param3=100,
+            param4=1,
+            wait_for_finish=False
+        )
 
     def led(self, r: int, g: int, b: int):
         """
@@ -849,10 +861,8 @@ class AirplaneOwl02(IAirplane):
         """悬停 - 通过停止当前移动命令实现"""
         logger.info(f"Hovering device {self.target_channel_id}")
         self._send_command_with_retry(
-            command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
-            param1=1,  # 任意方向
-            param2=0,  # 零距离
-            param3=0,  # 零速度
+            command=mavlink2.MAV_CMD_EXT_DRONE_HOVER,
+            param1=1,
             wait_for_finish=False
         )
 
