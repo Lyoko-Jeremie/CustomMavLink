@@ -905,3 +905,11 @@ class AirplaneOwl02(IAirplane):
             param2=4,
             wait_for_finish=False
         )
+
+    def emergency_stop(self):
+        """紧急停机 - MAV_CMD_EXT_DRONE_URGENT_DISARM (284)"""
+        logger.warning(f"Emergency stop for device {self.target_channel_id}")
+        self._send_command_with_retry(
+            command=mavlink2.MAV_CMD_EXT_DRONE_URGENT_DISARM,
+            param1=1  # 1 = disarm
+        )
