@@ -329,7 +329,7 @@ class MultiDroneControlGUI:
 
         tk.Label(distance_row, text="移动距离(cm):").pack(side="left", padx=3)
         self.global_distance = tk.Entry(distance_row, width=8)
-        self.global_distance.insert(0, "100")
+        self.global_distance.insert(0, "50")
         self.global_distance.pack(side="left", padx=3)
 
         direction_grid = tk.Frame(move_frame)
@@ -614,7 +614,7 @@ class MultiDroneControlGUI:
         row2.pack(fill="x", pady=2)
 
         panel['distance_entry'] = tk.Entry(row2, width=6)
-        panel['distance_entry'].insert(0, "100")
+        panel['distance_entry'].insert(0, "50")
         panel['distance_entry'].pack(side="left", padx=2)
 
         tk.Label(row2, text="cm", font=("Arial", 8)).pack(side="left")
