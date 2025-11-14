@@ -307,7 +307,7 @@ class MultiDroneControlGUI:
 
         tk.Label(row2, text="高度(cm):").pack(side="left", padx=3)
         self.global_height = tk.Entry(row2, width=8)
-        self.global_height.insert(0, "150")
+        self.global_height.insert(0, "100")
         self.global_height.pack(side="left", padx=3)
 
         tk.Button(
