@@ -217,7 +217,7 @@ class MultiDroneControlGUI:
         tk.Label(drone_count_frame, text="无人机数量:").pack(side="left", padx=5)
         self.drone_count_spinbox = tk.Spinbox(drone_count_frame, from_=1, to=16, width=8)
         self.drone_count_spinbox.delete(0, tk.END)
-        self.drone_count_spinbox.insert(0, "4")
+        self.drone_count_spinbox.insert(0, "3")
         self.drone_count_spinbox.pack(side="left", padx=5)
 
         tk.Button(
