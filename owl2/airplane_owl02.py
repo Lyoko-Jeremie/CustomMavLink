@@ -916,13 +916,19 @@ class AirplaneOwl02(IAirplane):
             param1=mode
         )
 
-    def go_openmv_cmd(self, cmd: int):
+    def go_openmv_cmd(self, cmd: int, x: int, y: int, z: int):
         """开启OPENMV相关运动 - MAV_CMD_EXT_DRONE_OPEMMV_CMD
         开启之前要通过 MAV_CMD_EXT_DRONE_SET_MODE / MAV_CMD_EXT_DRONE_VISION_DETECT_MODE_SET 对应的识别模式和设置
         :param cmd: 视觉模式值 (0:巡线 1:锁定二维码，飞到二维码正上方，3：寻找色块)
+        :param x: x轴移动距离，单位cm
+        :param y: y轴移动距离，单位cm
+        :param z: z轴移动距离，单位cm
         """
         logger.info(f"Going OpenMV command {cmd} for device {self.target_channel_id}")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_OPEMMV_CMD,
             param1=cmd,
+            param2=x,
+            param3=y,
+            param4=z,
         )
