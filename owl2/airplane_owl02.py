@@ -534,7 +534,7 @@ class AirplaneOwl02(IAirplane):
         )
 
     def disarm(self):
-        """锁定无人机 - MAV_CMD_COMPONENT_ARM_DISARM (400)"""
+        """锁定无人机 - MAV_CMD_COMPONENT_ARM_DISARM """
         logger.info(f"Disarming device {self.target_channel_id}")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_COMPONENT_ARM_DISARM,
@@ -543,7 +543,7 @@ class AirplaneOwl02(IAirplane):
 
     def takeoff(self, altitude: float):
         """
-        起飞到指定高度 - MAV_CMD_EXT_DRONE_TAKEOFF (270)
+        起飞到指定高度 - MAV_CMD_EXT_DRONE_TAKEOFF
         :param altitude: 起飞高度，单位cm
         """
         height_cm = int(altitude)
@@ -558,7 +558,7 @@ class AirplaneOwl02(IAirplane):
         )
 
     def land(self):
-        """降落 - MAV_CMD_EXT_DRONE_LAND (271)"""
+        """降落 - MAV_CMD_EXT_DRONE_LAND """
         logger.info(f"Landing device {self.target_channel_id}")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_LAND,
@@ -578,7 +578,7 @@ class AirplaneOwl02(IAirplane):
         )
 
     def up(self, distance: int):
-        """上升指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
+        """上升指定距离 - MAV_CMD_EXT_DRONE_MOVE
         :param distance: 距离，单位cm
         """
         # distance = max(0, min(1000, distance))  # 限制范围
@@ -588,12 +588,11 @@ class AirplaneOwl02(IAirplane):
             param1=1,
             param2=distance,
             param3=100,  # 默认速度100cm/s
-            param4=0,
             wait_for_finish=False  # 改为非阻塞
         )
 
     def down(self, distance: int):
-        """下降指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
+        """下降指定距离 - MAV_CMD_EXT_DRONE_MOVE
         :param distance: 距离，单位cm
         """
         # distance = max(0, min(1000, distance))
@@ -603,12 +602,11 @@ class AirplaneOwl02(IAirplane):
             param1=2,
             param2=distance,
             param3=100,
-            param4=0,
             wait_for_finish=False
         )
 
     def forward(self, distance: int):
-        """前进指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
+        """前进指定距离 - MAV_CMD_EXT_DRONE_MOVE
         :param distance: 距离，单位cm
         """
         # distance = max(0, min(1000, distance))
@@ -618,12 +616,11 @@ class AirplaneOwl02(IAirplane):
             param1=3,
             param2=distance,
             param3=100,
-            param4=0,
             wait_for_finish=False
         )
 
     def back(self, distance: int):
-        """后退指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
+        """后退指定距离 - MAV_CMD_EXT_DRONE_MOVE
         :param distance: 距离，单位cm
         """
         # distance = max(0, min(1000, distance))
@@ -633,12 +630,11 @@ class AirplaneOwl02(IAirplane):
             param1=4,
             param2=distance,
             param3=100,
-            param4=0,
             wait_for_finish=False
         )
 
     def left(self, distance: int):
-        """左移指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
+        """左移指定距离 - MAV_CMD_EXT_DRONE_MOVE
         :param distance: 距离，单位cm
         """
         # distance = max(0, min(1000, distance))
@@ -648,12 +644,11 @@ class AirplaneOwl02(IAirplane):
             param1=5,
             param2=distance,
             param3=100,
-            param4=0,
             wait_for_finish=False
         )
 
     def right(self, distance: int):
-        """右移指定距离 - MAV_CMD_EXT_DRONE_MOVE (272)
+        """右移指定距离 - MAV_CMD_EXT_DRONE_MOVE
         :param distance: 距离，单位cm
         """
         # distance = max(0, min(1000, distance))
@@ -663,13 +658,12 @@ class AirplaneOwl02(IAirplane):
             param1=6,
             param2=distance,
             param3=100,
-            param4=0,
             wait_for_finish=False
         )
 
     def goto(self, x: int, y: int, h: int):
         """
-        移动到指定坐标处 - MAV_CMD_EXT_DRONE_WAYPOINT (274)
+        移动到指定坐标处 - MAV_CMD_EXT_DRONE_WAYPOINT
         :param x: x轴距离，单位cm（机头正前方为x轴正方向，min值-1000，max值1000）
         :param y: y轴距离，单位cm（机头左边为y轴正方向，min值-1000，max值1000）
         :param h: 飞行高度，单位cm（min值-200，max值200，最大高度2米）
@@ -693,7 +687,7 @@ class AirplaneOwl02(IAirplane):
 
     def cw(self, degree: int):
         """
-        顺时针旋转指定角度 - MAV_CMD_EXT_DRONE_CIRCLE (273)
+        顺时针旋转指定角度 - MAV_CMD_EXT_DRONE_CIRCLE
         :param degree: 角度（单位度，min值0，max值360）
         """
         # degree = max(0, min(360, degree))
@@ -707,7 +701,7 @@ class AirplaneOwl02(IAirplane):
 
     def ccw(self, degree: int):
         """
-        逆时针旋转指定角度 - MAV_CMD_EXT_DRONE_CIRCLE (273)
+        逆时针旋转指定角度 - MAV_CMD_EXT_DRONE_CIRCLE
         :param degree: 角度（单位度，min值0，max值360）
         """
         # degree = max(0, min(360, degree))
@@ -721,7 +715,7 @@ class AirplaneOwl02(IAirplane):
 
     def speed(self, speed: int):
         """
-        设置飞行速度 - MAV_CMD_EXT_DRONE_CHANGE_SPEED (275)
+        设置飞行速度 - MAV_CMD_EXT_DRONE_CHANGE_SPEED
         :param speed: 速度，单位cm/s（min值0，max值200）
         """
         speed = max(0, min(200, speed))
@@ -734,22 +728,19 @@ class AirplaneOwl02(IAirplane):
         )
 
     def high(self, high: int):
-        """移动到指定高度处 - 使用goto的简化版本
+        """移动到指定高度处 - MAV_CMD_EXT_DRONE_SET_HEGHT
         :param high: 高度，单位cm
         """
-        logger.info(f"Setting altitude for device {self.target_channel_id} to {high}cm")
+        logger.info(f"Setting height for device {self.target_channel_id} to {high}cm")
         self._send_command_with_retry(
-            command=mavlink2.MAV_CMD_EXT_DRONE_MOVE,
-            param1=1,
-            param2=high,
-            param3=100,
-            param4=1,
-            wait_for_finish=False
+            command=mavlink2.MAV_CMD_EXT_DRONE_SET_HEGHT,
+            param1=high,
+            wait_for_finish=False,
         )
 
     def led(self, r: int, g: int, b: int):
         """
-        设置无人机LED色彩 - MAV_CMD_EXT_DRONE_LIGHT_RGB (276)
+        设置无人机LED色彩 - MAV_CMD_EXT_DRONE_LIGHT_RGB
         :param r: 红色值（0-255）
         :param g: 绿色值（0-255）
         :param b: 蓝色值（0-255）
@@ -772,7 +763,7 @@ class AirplaneOwl02(IAirplane):
 
     def bln(self, r: int, g: int, b: int):
         """
-        设置无人机LED呼吸灯色彩 - MAV_CMD_EXT_DRONE_LIGHT_RGB (276)
+        设置无人机LED呼吸灯色彩 - MAV_CMD_EXT_DRONE_LIGHT_RGB
         :param r: 红色值（0-255）
         :param g: 绿色值（0-255）
         :param b: 蓝色值（0-255）
@@ -793,7 +784,7 @@ class AirplaneOwl02(IAirplane):
 
     def rainbow(self, r: int, g: int, b: int):
         """
-        设置无人机LED彩虹色彩 - MAV_CMD_EXT_DRONE_LIGHT_RGB (276)
+        设置无人机LED彩虹色彩 - MAV_CMD_EXT_DRONE_LIGHT_RGB
         :param r: 红色值（0-255）
         :param g: 绿色值（0-255）
         :param b: 蓝色值（0-255）
@@ -814,7 +805,7 @@ class AirplaneOwl02(IAirplane):
 
     def airplane_mode(self, mode: int):
         """
-        设置无人机飞行模式 - MAV_CMD_EXT_DRONE_SET_MODE (277)
+        设置无人机飞行模式 - MAV_CMD_EXT_DRONE_SET_MODE
         :param mode: 1常规 2巡线 3跟随（通常情况下使用模式1）
         """
         mode = max(1, min(3, mode))
@@ -827,7 +818,7 @@ class AirplaneOwl02(IAirplane):
 
     def set_color_detect_mode(self, l_min: int, l_max: int, a_min: int, a_max: int, b_min: int, b_max: int):
         """
-        设置色块检测模式 - MAV_CMD_EXT_DRONE_VERSION_DETECT_MODE_SET (278)
+        设置色块检测模式 - MAV_CMD_EXT_DRONE_VISION_DETECT_MODE_SET
         :param l_min: 色块L通道的最低检测值
         :param l_max: 色块L通道的最高检测值
         :param a_min: 色块A通道的最低检测值
@@ -838,7 +829,7 @@ class AirplaneOwl02(IAirplane):
         logger.info(f"Setting color detect mode for device {self.target_channel_id}: "
                     f"L({l_min}-{l_max}), A({a_min}-{a_max}), B({b_min}-{b_max})")
         self._send_command_with_retry(
-            command=mavlink2.MAV_CMD_EXT_DRONE_VERSION_DETECT_MODE_SET,
+            command=mavlink2.MAV_CMD_EXT_DRONE_VISION_DETECT_MODE_SET,
             param1=l_min,
             param2=l_max,
             param3=a_min,
@@ -907,9 +898,31 @@ class AirplaneOwl02(IAirplane):
         )
 
     def emergency_stop(self):
-        """紧急停机 - MAV_CMD_EXT_DRONE_URGENT_DISARM (284)"""
+        """紧急停机闭锁 - MAV_CMD_EXT_DRONE_URGENT_DISARM """
         logger.warning(f"Emergency stop for device {self.target_channel_id}")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_URGENT_DISARM,
             param1=1  # 1 = disarm
+        )
+
+    def set_openmv_mode(self, mode: int):
+        """设置openmv识别模式 - MAV_CMD_EXT_DRONE_SET_MODE
+        :param mode: 模式值 (1常规 2巡线 3跟随)
+        """
+        mode = max(1, min(3, mode))
+        logger.info(f"Setting OpenMV mode for device {self.target_channel_id} to {mode}")
+        self._send_command_with_retry(
+            command=mavlink2.MAV_CMD_EXT_DRONE_SET_MODE,
+            param1=mode
+        )
+
+    def go_openmv_cmd(self, cmd: int):
+        """开启OPENMV相关运动 - MAV_CMD_EXT_DRONE_OPEMMV_CMD
+        开启之前要通过 MAV_CMD_EXT_DRONE_SET_MODE / MAV_CMD_EXT_DRONE_VISION_DETECT_MODE_SET 对应的识别模式和设置
+        :param cmd: 视觉模式值 (0:巡线 1:锁定二维码，飞到二维码正上方，3：寻找色块)
+        """
+        logger.info(f"Going OpenMV command {cmd} for device {self.target_channel_id}")
+        self._send_command_with_retry(
+            command=mavlink2.MAV_CMD_EXT_DRONE_OPEMMV_CMD,
+            param1=cmd,
         )
