@@ -1905,7 +1905,7 @@ enums["MAV_CMD"][277].param[6] = """Empty"""
 enums["MAV_CMD"][277].param[7] = """timestemp"""
 MAV_CMD_EXT_DRONE_HOVER = 278
 enums["MAV_CMD"][278] = EnumEntry("MAV_CMD_EXT_DRONE_HOVER", """xinguangfei """)
-enums["MAV_CMD"][278].param[1] = """1：hover"""
+enums["MAV_CMD"][278].param[1] = """1锛歨over"""
 enums["MAV_CMD"][278].param[3] = """Empty"""
 enums["MAV_CMD"][278].param[3] = """Empty"""
 enums["MAV_CMD"][278].param[4] = """Empty"""
@@ -1914,7 +1914,7 @@ enums["MAV_CMD"][278].param[6] = """Empty"""
 enums["MAV_CMD"][278].param[7] = """timestemp"""
 MAV_CMD_EXT_DRONE_URGENT_DISARM = 279
 enums["MAV_CMD"][279] = EnumEntry("MAV_CMD_EXT_DRONE_URGENT_DISARM", """xinguangfei """)
-enums["MAV_CMD"][279].param[1] = """1：disarm"""
+enums["MAV_CMD"][279].param[1] = """1锛歞isarm"""
 enums["MAV_CMD"][279].param[3] = """Empty"""
 enums["MAV_CMD"][279].param[3] = """Empty"""
 enums["MAV_CMD"][279].param[4] = """Empty"""
@@ -18136,7 +18136,7 @@ class MAVLink(object):
         ymag                      : Y Magnetic field [mgauss] (type:int16_t)
         zmag                      : Z Magnetic field [mgauss] (type:int16_t)
         temperature               : Temperature, 0: IMU does not provide temperature values. If the IMU is at 0C it must send 1 (0.01C). [cdegC] (type:int16_t)
-        daoYaw                    : 双天线传感器1角度 [0.1deg] (type:int16_t)
+        daoYaw                    : 鍙屽ぉ绾夸紶鎰熷櫒1瑙掑害 [0.1deg] (type:int16_t)
 
         """
         return MAVLink_scaled_imu_message(time_boot_ms, xacc, yacc, zacc, xgyro, ygyro, zgyro, xmag, ymag, zmag, temperature, daoYaw)
@@ -18157,7 +18157,7 @@ class MAVLink(object):
         ymag                      : Y Magnetic field [mgauss] (type:int16_t)
         zmag                      : Z Magnetic field [mgauss] (type:int16_t)
         temperature               : Temperature, 0: IMU does not provide temperature values. If the IMU is at 0C it must send 1 (0.01C). [cdegC] (type:int16_t)
-        daoYaw                    : 双天线传感器1角度 [0.1deg] (type:int16_t)
+        daoYaw                    : 鍙屽ぉ绾夸紶鎰熷櫒1瑙掑害 [0.1deg] (type:int16_t)
 
         """
         self.send(self.scaled_imu_encode(time_boot_ms, xacc, yacc, zacc, xgyro, ygyro, zgyro, xmag, ymag, zmag, temperature, daoYaw), force_mavlink1=force_mavlink1)
