@@ -193,9 +193,9 @@ class MultiDroneControlGUI:
             bg="#27AE60",
             fg="white",
             font=("Arial", 11, "bold"),
-            height=2
+            height=1
         )
-        self.btn_init.pack(fill="x", pady=5)
+        self.btn_init.pack(fill="x", pady=2)
 
         # 断开连接按钮
         self.btn_disconnect = tk.Button(
@@ -205,14 +205,14 @@ class MultiDroneControlGUI:
             bg="#E74C3C",
             fg="white",
             font=("Arial", 11, "bold"),
-            height=2,
+            height=1,
             state='disabled'
         )
-        self.btn_disconnect.pack(fill="x", pady=5)
+        self.btn_disconnect.pack(fill="x", pady=2)
 
         # 无人机数量配置
         drone_count_frame = tk.Frame(parent)
-        drone_count_frame.pack(fill="x", pady=5)
+        drone_count_frame.pack(fill="x", pady=2)
 
         tk.Label(drone_count_frame, text="无人机数量:").pack(side="left", padx=5)
         self.drone_count_spinbox = tk.Spinbox(drone_count_frame, from_=1, to=16, width=8)
@@ -231,7 +231,7 @@ class MultiDroneControlGUI:
 
         # 心跳包控制
         heartbeat_frame = tk.Frame(parent)
-        heartbeat_frame.pack(fill="x", pady=5)
+        heartbeat_frame.pack(fill="x", pady=2)
 
         self.heartbeat_var = tk.BooleanVar(value=True)
         self.heartbeat_checkbox = tk.Checkbutton(
@@ -255,7 +255,7 @@ class MultiDroneControlGUI:
         """创建全局控制面板"""
         # 全选/取消全选按钮
         selection_frame = tk.Frame(parent)
-        selection_frame.pack(fill="x", pady=5)
+        selection_frame.pack(fill="x", pady=2)
 
         tk.Button(
             selection_frame,
@@ -265,7 +265,7 @@ class MultiDroneControlGUI:
             fg="white",
             font=("Arial", 9, "bold"),
             width=10
-        ).pack(side="left", padx=5)
+        ).pack(side="left", padx=2)
 
         tk.Button(
             selection_frame,
@@ -275,7 +275,7 @@ class MultiDroneControlGUI:
             fg="white",
             font=("Arial", 9, "bold"),
             width=10
-        ).pack(side="left", padx=5)
+        ).pack(side="left", padx=2)
 
         self.selected_count_label = tk.Label(
             selection_frame,
@@ -283,159 +283,229 @@ class MultiDroneControlGUI:
             font=("Arial", 10, "bold"),
             fg="#E74C3C"
         )
-        self.selected_count_label.pack(side="left", padx=10)
+        self.selected_count_label.pack(side="left", padx=5)
 
         # 基本控制按钮
-        basic_control_frame = ttk.LabelFrame(parent, text="基本控制", padding=5)
-        basic_control_frame.pack(fill="x", pady=5)
+        basic_control_frame = ttk.LabelFrame(parent, text="基本控制", padding=3)
+        basic_control_frame.pack(fill="x", pady=2)
 
         row1 = tk.Frame(basic_control_frame)
-        row1.pack(fill="x", pady=2)
+        row1.pack(fill="x", pady=1)
 
         tk.Button(
             row1, text="解锁 (Arm)", command=lambda: self.global_command('arm'),
-            bg="#F39C12", fg="white", font=("Arial", 9, "bold"), width=12, height=2
-        ).pack(side="left", padx=3, expand=True, fill="x")
+            bg="#F39C12", fg="white", font=("Arial", 9, "bold"), width=12, height=1
+        ).pack(side="left", padx=2, expand=True, fill="x")
 
         tk.Button(
             row1, text="上锁 (Disarm)", command=lambda: self.global_command('disarm'),
-            bg="#7F8C8D", fg="white", font=("Arial", 9, "bold"), width=12, height=2
-        ).pack(side="left", padx=3, expand=True, fill="x")
+            bg="#7F8C8D", fg="white", font=("Arial", 9, "bold"), width=12, height=1
+        ).pack(side="left", padx=2, expand=True, fill="x")
 
         row2 = tk.Frame(basic_control_frame)
-        row2.pack(fill="x", pady=2)
+        row2.pack(fill="x", pady=1)
 
-        tk.Label(row2, text="高度(cm):").pack(side="left", padx=3)
+        tk.Label(row2, text="高度(cm):").pack(side="left", padx=2)
         self.global_height = tk.Entry(row2, width=8)
         self.global_height.insert(0, "100")
-        self.global_height.pack(side="left", padx=3)
+        self.global_height.pack(side="left", padx=2)
 
         tk.Button(
             row2, text="起飞", command=self.global_takeoff,
-            bg="#27AE60", fg="white", font=("Arial", 9, "bold"), width=10, height=2
-        ).pack(side="left", padx=3, expand=True, fill="x")
+            bg="#27AE60", fg="white", font=("Arial", 9, "bold"), width=10, height=1
+        ).pack(side="left", padx=2, expand=True, fill="x")
 
         tk.Button(
             row2, text="降落", command=lambda: self.global_command('land'),
-            bg="#E74C3C", fg="white", font=("Arial", 9, "bold"), width=10, height=2
-        ).pack(side="left", padx=3, expand=True, fill="x")
+            bg="#E74C3C", fg="white", font=("Arial", 9, "bold"), width=10, height=1
+        ).pack(side="left", padx=2, expand=True, fill="x")
+
+        row3 = tk.Frame(basic_control_frame)
+        row3.pack(fill="x", pady=1)
+
+        tk.Label(row3, text="目标高度(cm):").pack(side="left", padx=2)
+        self.global_target_height = tk.Entry(row3, width=8)
+        self.global_target_height.insert(0, "150")
+        self.global_target_height.pack(side="left", padx=2)
+
+        tk.Button(
+            row3, text="设置高度", command=self.global_set_height,
+            bg="#9B59B6", fg="white", font=("Arial", 9, "bold"), width=10, height=1
+        ).pack(side="left", padx=2, expand=True, fill="x")
+
+        tk.Button(
+            row3, text="悬停", command=lambda: self.global_command('hover'),
+            bg="#3498DB", fg="white", font=("Arial", 9, "bold"), width=10, height=1
+        ).pack(side="left", padx=2, expand=True, fill="x")
 
         # 移动控制
-        move_frame = ttk.LabelFrame(parent, text="编队移动", padding=5)
-        move_frame.pack(fill="x", pady=5)
+        move_frame = ttk.LabelFrame(parent, text="编队移动", padding=3)
+        move_frame.pack(fill="x", pady=2)
 
         distance_row = tk.Frame(move_frame)
-        distance_row.pack(fill="x", pady=2)
+        distance_row.pack(fill="x", pady=1)
 
-        tk.Label(distance_row, text="移动距离(cm):").pack(side="left", padx=3)
+        tk.Label(distance_row, text="移动距离(cm):").pack(side="left", padx=2)
         self.global_distance = tk.Entry(distance_row, width=8)
         self.global_distance.insert(0, "50")
-        self.global_distance.pack(side="left", padx=3)
+        self.global_distance.pack(side="left", padx=2)
 
         direction_grid = tk.Frame(move_frame)
-        direction_grid.pack(pady=3)
+        direction_grid.pack(pady=1)
 
         # 上升
         tk.Button(
             direction_grid, text="↑ 上升", command=self.global_up,
             bg="#3498DB", fg="white", font=("Arial", 8, "bold"), width=10, height=1
-        ).grid(row=0, column=1, padx=2, pady=2)
+        ).grid(row=0, column=1, padx=1, pady=1)
 
         # 前进
         tk.Button(
             direction_grid, text="↑ 前进", command=self.global_forward,
             bg="#16A085", fg="white", font=("Arial", 8, "bold"), width=10, height=1
-        ).grid(row=1, column=1, padx=2, pady=2)
+        ).grid(row=1, column=1, padx=1, pady=1)
 
         # 左右
         tk.Button(
             direction_grid, text="← 左移", command=self.global_left,
             bg="#16A085", fg="white", font=("Arial", 8, "bold"), width=10, height=1
-        ).grid(row=2, column=0, padx=2, pady=2)
+        ).grid(row=2, column=0, padx=1, pady=1)
 
         tk.Button(
             direction_grid, text="→ 右移", command=self.global_right,
             bg="#16A085", fg="white", font=("Arial", 8, "bold"), width=10, height=1
-        ).grid(row=2, column=2, padx=2, pady=2)
+        ).grid(row=2, column=2, padx=1, pady=1)
 
         # 后退
         tk.Button(
             direction_grid, text="↓ 后退", command=self.global_back,
             bg="#16A085", fg="white", font=("Arial", 8, "bold"), width=10, height=1
-        ).grid(row=3, column=1, padx=2, pady=2)
+        ).grid(row=3, column=1, padx=1, pady=1)
 
         # 下降
         tk.Button(
             direction_grid, text="↓ 下降", command=self.global_down,
             bg="#3498DB", fg="white", font=("Arial", 8, "bold"), width=10, height=1
-        ).grid(row=4, column=1, padx=2, pady=2)
+        ).grid(row=4, column=1, padx=1, pady=1)
 
         # Goto定点飞行控制
-        goto_frame = ttk.LabelFrame(parent, text="编队定点飞行 (Goto)", padding=5)
-        goto_frame.pack(fill="x", pady=5)
+        goto_frame = ttk.LabelFrame(parent, text="编队定点飞行 (Goto)", padding=3)
+        goto_frame.pack(fill="x", pady=2)
 
         coords_frame = tk.Frame(goto_frame)
-        coords_frame.pack(fill="x", pady=2)
+        coords_frame.pack(fill="x", pady=1)
 
-        tk.Label(coords_frame, text="X(cm):").pack(side="left", padx=2)
+        tk.Label(coords_frame, text="X(cm):").pack(side="left", padx=1)
         self.global_goto_x = tk.Entry(coords_frame, width=8)
         self.global_goto_x.insert(0, "100")
-        self.global_goto_x.pack(side="left", padx=2)
+        self.global_goto_x.pack(side="left", padx=1)
 
-        tk.Label(coords_frame, text="Y(cm):").pack(side="left", padx=2)
+        tk.Label(coords_frame, text="Y(cm):").pack(side="left", padx=1)
         self.global_goto_y = tk.Entry(coords_frame, width=8)
         self.global_goto_y.insert(0, "100")
-        self.global_goto_y.pack(side="left", padx=2)
+        self.global_goto_y.pack(side="left", padx=1)
 
-        tk.Label(coords_frame, text="Z(cm):").pack(side="left", padx=2)
+        tk.Label(coords_frame, text="Z(cm):").pack(side="left", padx=1)
         self.global_goto_z = tk.Entry(coords_frame, width=8)
         self.global_goto_z.insert(0, "150")
-        self.global_goto_z.pack(side="left", padx=2)
+        self.global_goto_z.pack(side="left", padx=1)
 
         tk.Button(
             goto_frame, text="飞往目标点", command=self.global_goto,
-            bg="#673AB7", fg="white", font=("Arial", 9, "bold"), width=15, height=2
-        ).pack(pady=3)
+            bg="#673AB7", fg="white", font=("Arial", 9, "bold"), width=15, height=1
+        ).pack(pady=1)
 
         # 灯光控制
-        light_frame = ttk.LabelFrame(parent, text="编队灯光", padding=5)
-        light_frame.pack(fill="x", pady=5)
+        light_frame = ttk.LabelFrame(parent, text="编队灯光", padding=3)
+        light_frame.pack(fill="x", pady=2)
 
         rgb_frame = tk.Frame(light_frame)
-        rgb_frame.pack(fill="x", pady=2)
+        rgb_frame.pack(fill="x", pady=1)
 
-        tk.Label(rgb_frame, text="R:").pack(side="left", padx=2)
+        tk.Label(rgb_frame, text="R:").pack(side="left", padx=1)
         self.global_r = tk.Entry(rgb_frame, width=5)
         self.global_r.insert(0, "255")
-        self.global_r.pack(side="left", padx=2)
+        self.global_r.pack(side="left", padx=1)
 
-        tk.Label(rgb_frame, text="G:").pack(side="left", padx=2)
+        tk.Label(rgb_frame, text="G:").pack(side="left", padx=1)
         self.global_g = tk.Entry(rgb_frame, width=5)
         self.global_g.insert(0, "0")
-        self.global_g.pack(side="left", padx=2)
+        self.global_g.pack(side="left", padx=1)
 
-        tk.Label(rgb_frame, text="B:").pack(side="left", padx=2)
+        tk.Label(rgb_frame, text="B:").pack(side="left", padx=1)
         self.global_b = tk.Entry(rgb_frame, width=5)
         self.global_b.insert(0, "0")
-        self.global_b.pack(side="left", padx=2)
+        self.global_b.pack(side="left", padx=1)
 
         light_btn_frame = tk.Frame(light_frame)
-        light_btn_frame.pack(fill="x", pady=2)
+        light_btn_frame.pack(fill="x", pady=1)
 
         tk.Button(
             light_btn_frame, text="常亮", command=self.global_led,
             bg="#F39C12", fg="white", font=("Arial", 8, "bold"), width=8, height=1
-        ).pack(side="left", padx=2, expand=True, fill="x")
+        ).pack(side="left", padx=1, expand=True, fill="x")
 
         tk.Button(
             light_btn_frame, text="呼吸", command=self.global_breathe,
             bg="#3498DB", fg="white", font=("Arial", 8, "bold"), width=8, height=1
-        ).pack(side="left", padx=2, expand=True, fill="x")
+        ).pack(side="left", padx=1, expand=True, fill="x")
 
         tk.Button(
             light_btn_frame, text="彩虹", command=self.global_rainbow,
             bg="#E91E63", fg="white", font=("Arial", 8, "bold"), width=8, height=1
-        ).pack(side="left", padx=2, expand=True, fill="x")
+        ).pack(side="left", padx=1, expand=True, fill="x")
+
+        # OpenMV控制
+        openmv_frame = ttk.LabelFrame(parent, text="OpenMV视觉控制", padding=3)
+        openmv_frame.pack(fill="x", pady=2)
+
+        mode_row = tk.Frame(openmv_frame)
+        mode_row.pack(fill="x", pady=1)
+
+        tk.Label(mode_row, text="识别模式:").pack(side="left", padx=2)
+        self.openmv_mode = tk.Spinbox(mode_row, from_=1, to=3, width=8)
+        self.openmv_mode.delete(0, tk.END)
+        self.openmv_mode.insert(0, "1")
+        self.openmv_mode.pack(side="left", padx=2)
+        tk.Label(mode_row, text="(1常规 2巡线 3跟随)", font=("Arial", 8)).pack(side="left", padx=2)
+
+        tk.Button(
+            openmv_frame, text="设置OpenMV模式", command=self.global_set_openmv_mode,
+            bg="#FF5722", fg="white", font=("Arial", 9, "bold"), width=20, height=1
+        ).pack(pady=1)
+
+        cmd_row = tk.Frame(openmv_frame)
+        cmd_row.pack(fill="x", pady=1)
+
+        tk.Label(cmd_row, text="视觉命令:").pack(side="left", padx=1)
+        self.openmv_cmd = tk.Spinbox(cmd_row, from_=0, to=3, width=5)
+        self.openmv_cmd.delete(0, tk.END)
+        self.openmv_cmd.insert(0, "0")
+        self.openmv_cmd.pack(side="left", padx=1)
+        tk.Label(cmd_row, text="(0巡线 1锁定二维码 3寻找色块)", font=("Arial", 8)).pack(side="left", padx=1)
+
+        openmv_coords_frame = tk.Frame(openmv_frame)
+        openmv_coords_frame.pack(fill="x", pady=1)
+
+        tk.Label(openmv_coords_frame, text="X(cm):").pack(side="left", padx=1)
+        self.openmv_x = tk.Entry(openmv_coords_frame, width=6)
+        self.openmv_x.insert(0, "0")
+        self.openmv_x.pack(side="left", padx=1)
+
+        tk.Label(openmv_coords_frame, text="Y(cm):").pack(side="left", padx=1)
+        self.openmv_y = tk.Entry(openmv_coords_frame, width=6)
+        self.openmv_y.insert(0, "0")
+        self.openmv_y.pack(side="left", padx=1)
+
+        tk.Label(openmv_coords_frame, text="Z(cm):").pack(side="left", padx=1)
+        self.openmv_z = tk.Entry(openmv_coords_frame, width=6)
+        self.openmv_z.insert(0, "0")
+        self.openmv_z.pack(side="left", padx=1)
+
+        tk.Button(
+            openmv_frame, text="执行OpenMV命令", command=self.global_go_openmv_cmd,
+            bg="#FF9800", fg="white", font=("Arial", 9, "bold"), width=20, height=1
+        ).pack(pady=1)
 
     def _create_drones_panel(self, parent):
         """创建无人机面板容器（可滚动）"""
@@ -1086,6 +1156,44 @@ class MultiDroneControlGUI:
         except ValueError:
             self.log_message("无效的坐标值", "ERROR")
             messagebox.showerror("错误", "请输入有效的坐标值(cm)")
+
+    def global_set_height(self):
+        """全局设置到指定高度"""
+        try:
+            height = int(self.global_target_height.get())
+            # 使用goto命令，x=0, y=0，只改变高度
+            self.global_command('goto', 0, 0, height)
+            self.log_message(f"正在设置高度到 {height}cm", "INFO")
+        except ValueError:
+            self.log_message("无效的高度值", "ERROR")
+            messagebox.showerror("错误", "请输入有效的高度值(cm)")
+
+    def global_set_openmv_mode(self):
+        """全局设置OpenMV模式"""
+        try:
+            mode = int(self.openmv_mode.get())
+            if mode < 1 or mode > 3:
+                raise ValueError("模式必须在1-3之间")
+            self.global_command('set_openmv_mode', mode)
+            mode_name = {1: "常规", 2: "巡线", 3: "跟随"}
+            self.log_message(f"正在设置OpenMV模式为: {mode_name.get(mode, mode)}", "INFO")
+        except ValueError as e:
+            self.log_message(f"无效的OpenMV模式: {e}", "ERROR")
+            messagebox.showerror("错误", "请输入有效的OpenMV模式(1-3)")
+
+    def global_go_openmv_cmd(self):
+        """全局执行OpenMV命令"""
+        try:
+            cmd = int(self.openmv_cmd.get())
+            x = int(self.openmv_x.get())
+            y = int(self.openmv_y.get())
+            z = int(self.openmv_z.get())
+            self.global_command('go_openmv_cmd', cmd, x, y, z)
+            cmd_name = {0: "巡线", 1: "锁定二维码", 3: "寻找色块"}
+            self.log_message(f"正在执行OpenMV命令: {cmd_name.get(cmd, cmd)}, 坐标({x},{y},{z})", "INFO")
+        except ValueError:
+            self.log_message("无效的OpenMV命令参数", "ERROR")
+            messagebox.showerror("错误", "请输入有效的OpenMV命令参数")
 
     # ==================== 辅助方法 ====================
 
