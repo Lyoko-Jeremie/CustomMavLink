@@ -215,7 +215,8 @@ class PairToolsGUI:
         btn_frame.pack(fill=tk.X, pady=5)
         ttk.Button(btn_frame, text="连接", command=self._connect_board_port).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_frame, text="断开", command=self._disconnect_board_port).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="读取通道信息", command=self._refresh_board_channels).pack(side=tk.LEFT, padx=2)
+        self.refresh_channels_btn = ttk.Button(btn_frame, text="读取通道信息", command=self._refresh_board_channels)
+        self.refresh_channels_btn.pack(side=tk.LEFT, padx=2)
 
         # 配对操作区域
         pair_frame = ttk.LabelFrame(parent, text="配对操作", padding=10)
@@ -667,6 +668,9 @@ class PairToolsGUI:
         if not self.board_port:
             return
 
+        # 禁用按钮并更改文本
+        self.refresh_channels_btn.config(state='disabled', text="正在读取...")
+
         # 显示"正在读取"提示
         self.root.after(0, lambda: self._update_status_message("正在读取通道配对信息...", error=False))
 
@@ -706,6 +710,9 @@ class PairToolsGUI:
                 self.root.after(0, lambda e=err: self._update_status_message(
                     f"读取通道信息失败: {str(e)}", error=True
                 ))
+            finally:
+                # 恢复按钮状态
+                self.root.after(0, lambda: self.refresh_channels_btn.config(state='normal', text="读取通道信息"))
 
         thread = threading.Thread(target=read_thread, daemon=True)
         thread.start()
