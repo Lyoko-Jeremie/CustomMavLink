@@ -668,8 +668,8 @@ class PairToolsGUI:
         if not self.board_port:
             return
 
-        # 禁用按钮并更改文本
-        self.refresh_channels_btn.config(state='disabled', text="正在读取...")
+        # # 禁用按钮并更改文本
+        # self.refresh_channels_btn.config(state='disabled', text="正在读取...")
 
         # 显示"正在读取"提示
         self.root.after(0, lambda: self._update_status_message("正在读取通道配对信息...", error=False))
@@ -711,8 +711,9 @@ class PairToolsGUI:
                     f"读取通道信息失败: {str(e)}", error=True
                 ))
             finally:
-                # 恢复按钮状态
-                self.root.after(0, lambda: self.refresh_channels_btn.config(state='normal', text="读取通道信息"))
+                # # 恢复按钮状态
+                # self.root.after(0, lambda: self.refresh_channels_btn.config(state='normal', text="读取通道信息"))
+                pass
 
         thread = threading.Thread(target=read_thread, daemon=True)
         thread.start()
