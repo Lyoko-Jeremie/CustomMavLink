@@ -691,6 +691,9 @@ class AirplaneOwl02(IAirplane):
         :param degree: 角度（单位度，min值0，max值360）
         """
         # degree = max(0, min(360, degree))
+
+        # degree mod to [0,360]
+        degree = ((degree % 360) + 360) % 360
         logger.info(f"Rotating CW device {self.target_channel_id} by {degree} degrees")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_CIRCLE,
@@ -705,6 +708,7 @@ class AirplaneOwl02(IAirplane):
         :param degree: 角度（单位度，min值0，max值360）
         """
         # degree = max(0, min(360, degree))
+        degree = ((degree % 360) + 360) % 360
         logger.info(f"Rotating CCW device {self.target_channel_id} by {degree} degrees")
         self._send_command_with_retry(
             command=mavlink2.MAV_CMD_EXT_DRONE_CIRCLE,
