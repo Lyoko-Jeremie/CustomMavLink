@@ -262,6 +262,9 @@ class PairToolsGUI:
         self.channels_tree.column("通道", width=80)
         self.channels_tree.column("无人机ID地址", width=200)
 
+        # 绑定选择事件，更新目标通道下拉菜单
+        self.channels_tree.bind('<<TreeviewSelect>>', self._on_channel_selected)
+
         # 滚动条
         scrollbar = ttk.Scrollbar(channels_container, orient=tk.VERTICAL, command=self.channels_tree.yview)
         self.channels_tree.configure(yscrollcommand=scrollbar.set)
@@ -538,6 +541,20 @@ class PairToolsGUI:
             self.selected_drone_id_label.config(text=airplane_id.addr_hex_str, foreground='green')
         else:
             self.selected_drone_id_label.config(text="未选择", foreground='gray')
+
+    def _on_channel_selected(self, event):
+        """当选择地面板通道时，自动更新目标通道下拉菜单的值"""
+        selection = self.channels_tree.selection()
+        if not selection:
+            return
+
+        # 获取选中项的通道号
+        item = selection[0]
+        values = self.channels_tree.item(item, 'values')
+        if values:
+            channel = values[0]  # 通道号在第一列
+            # 更新目标通道下拉菜单
+            self.channel_combo.set(str(channel))
 
     def _delete_selected_drone_id(self):
         """删除选中的无人机ID"""
