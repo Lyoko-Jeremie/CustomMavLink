@@ -234,6 +234,24 @@ class PairManager:
             print(f"等待配对确认超时 (>{timeout}秒)")
             return False
 
+    def clear_channel(self, serial_port: serial.Serial, channel: int, timeout: float = 5.0) -> bool:
+        """
+        清除地面板指定通道的无人机ID
+        :param serial_port: 已打开的串口对象（地面板）
+        :param channel: 通道号 0~15
+        :param timeout: 超时时间（秒），默认2秒
+        :return: 是否成功
+        """
+
+        empty_airplane_id = AirplaneId(
+            raw_pack=b'',
+            mtx_address=b'\x00\x00\x00\x00\x00',
+            mrx_address_ack=b'\x00\x00\x00\x00\x00',
+            mrx_address_p1=b'\x00\x00\x00\x00\x00'
+        )
+
+        return self.set_airplane_id_to_channel(serial_port, channel, empty_airplane_id, timeout)
+
     def get_all_channel_id_from_board(self, serial_port: serial.Serial, channel=0, timeout: float = 5.0) -> dict[
         int, AirplaneId]:
         """

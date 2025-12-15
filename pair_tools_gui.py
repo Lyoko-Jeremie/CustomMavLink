@@ -233,6 +233,9 @@ class PairToolsGUI:
         self.channel_combo.pack(side=tk.LEFT, padx=5)
         ttk.Label(channel_frame, text="(可选范围: 0-15)", font=('Arial', 9)).pack(side=tk.LEFT, padx=5)
 
+        # 清除按钮
+        ttk.Button(channel_frame, text="清空目标通道", command=self._clean_target_channel, width=20).pack(side=tk.RIGHT, padx=(5,0))
+
         # 已选择的无人机ID显示
         selected_id_frame = ttk.Frame(pair_frame)
         selected_id_frame.pack(fill=tk.X, pady=2)
@@ -629,6 +632,55 @@ class PairToolsGUI:
                 self.root.after(0, lambda e=err: messagebox.showerror("错误", f"写入失败: {str(e)}"))
 
         thread = threading.Thread(target=write_thread, daemon=True)
+        thread.start()
+
+    def _clean_target_channel(self):
+        """清空地面板指定通道的配对信息"""
+        # 检查是否选择了地面板串口
+        if not self.board_port:
+            messagebox.showwarning("警告", "请先连接一个地面板串口")
+            return
+
+        # 获取目标通道 - 从Combobox获取，确保值在0-15范围内
+        try:
+            channel_str = self.channel_combo.get()
+            if not channel_str:
+                messagebox.showerror("错误", "请选择目标通道")
+                return
+
+            channel = int(channel_str)
+            # 双重验证：确保通道号在0-15之间
+            if not (0 <= channel <= 15):
+                messagebox.showerror("错误", f"通道号必须在0-15之间，当前值: {channel}")
+                return
+        except (ValueError, TypeError):
+            messagebox.showerror("错误", "通道号格式错误，请选择0-15之间的数字")
+            return
+
+        # 获取地面板串口
+        serial_port = self.board_port
+
+        # 在新线程中清空
+        def clean_thread():
+            try:
+                success = self.pair_manager.clear_channel(serial_port, channel, timeout=5.0)
+
+                if success:
+                    # 更新通道信息
+                    self.board_channels[channel] = None
+                    self.root.after(0, self._update_channels_list)
+                    self.root.after(0, lambda: messagebox.showinfo("成功",
+                                                                   f"成功清空通道 {channel} 的配对信息"))
+                else:
+                    self.root.after(0, lambda: messagebox.showerror("失败", "清空配对信息失败"))
+
+            except Exception as err:
+                print(err)
+                import traceback, sys
+                traceback.print_exc(file=sys.stdout)
+                self.root.after(0, lambda e=err: messagebox.showerror("错误", f"清空失败: {str(e)}"))
+
+        thread = threading.Thread(target=clean_thread, daemon=True)
         thread.start()
 
     def _update_channels_list(self):
