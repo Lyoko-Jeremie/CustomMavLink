@@ -604,10 +604,21 @@ class MultiDroneControlGUI:
         drone_select_frame.pack(fill="x", pady=5)
 
         tk.Label(drone_select_frame, text="选择无人机ID:", font=("Arial", 10)).pack(side="left", padx=5)
-        self.photo_drone_id_spinbox = tk.Spinbox(drone_select_frame, from_=0, to=15, width=5)
-        self.photo_drone_id_spinbox.delete(0, tk.END)
-        self.photo_drone_id_spinbox.insert(0, "0")
-        self.photo_drone_id_spinbox.pack(side="left", padx=5)
+        self.photo_drone_id_combo = ttk.Combobox(drone_select_frame, width=8, state="readonly")
+        self.photo_drone_id_combo['values'] = [str(i) for i in range(16)]
+        self.photo_drone_id_combo.current(0)
+        self.photo_drone_id_combo.pack(side="left", padx=5)
+
+        # 刷新无人机列表按钮
+        tk.Button(
+            drone_select_frame,
+            text="刷新",
+            command=self._refresh_photo_drone_list,
+            bg="#3498DB",
+            fg="white",
+            font=("Arial", 8),
+            width=5
+        ).pack(side="left", padx=5)
 
         # 拍照按钮
         self.btn_take_photo = tk.Button(
@@ -620,6 +631,18 @@ class MultiDroneControlGUI:
             height=2
         )
         self.btn_take_photo.pack(fill="x", pady=10)
+
+        # 清除缓存按钮
+        self.btn_clear_photo_cache = tk.Button(
+            parent,
+            text="🗑️ 清除无人机图片缓存",
+            command=self.clear_drone_photo_cache,
+            bg="#E74C3C",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            height=1
+        )
+        self.btn_clear_photo_cache.pack(fill="x", pady=5)
 
         # 传输状态
         status_frame = tk.Frame(parent)
@@ -689,10 +712,10 @@ class MultiDroneControlGUI:
             return
 
         try:
-            drone_id = int(self.photo_drone_id_spinbox.get())
+            drone_id = int(self.photo_drone_id_combo.get())
         except ValueError:
             self.log_message("无效的无人机ID", "ERROR")
-            messagebox.showerror("错误", "请输入有效的无人机ID")
+            messagebox.showerror("错误", "请选择有效的无人机ID")
             return
 
         # 获取无人机对象
@@ -891,6 +914,61 @@ class MultiDroneControlGUI:
             messagebox.showinfo("保存成功", f"照片已保存到:\n{save_path}")
         else:
             messagebox.showerror("保存失败", "无法保存照片")
+
+    def _refresh_photo_drone_list(self):
+        """刷新照片面板的无人机下拉列表"""
+        if not self.manager:
+            # 如果没有初始化，显示默认的0-15
+            self.photo_drone_id_combo['values'] = [str(i) for i in range(16)]
+            return
+
+        # 获取当前已连接/已知的无人机ID列表
+        drone_ids = []
+        try:
+            # 优先从drone_panels获取已生成的面板ID
+            if self.drone_panels:
+                drone_ids = sorted(self.drone_panels.keys())
+            else:
+                # 默认0-15
+                drone_ids = list(range(16))
+        except Exception:
+            drone_ids = list(range(16))
+
+        self.photo_drone_id_combo['values'] = [str(i) for i in drone_ids]
+        if drone_ids and self.photo_drone_id_combo.get() not in [str(i) for i in drone_ids]:
+            self.photo_drone_id_combo.current(0)
+
+        self.log_message(f"已刷新无人机列表: {drone_ids}")
+
+    def clear_drone_photo_cache(self):
+        """清除无人机上缓存的所有图片"""
+        if not self.check_manager():
+            return
+
+        try:
+            drone_id = int(self.photo_drone_id_combo.get())
+        except ValueError:
+            self.log_message("无效的无人机ID", "ERROR")
+            messagebox.showerror("错误", "请选择有效的无人机ID")
+            return
+
+        # 获取无人机对象
+        try:
+            airplane = self.manager.get_airplane(drone_id)
+        except Exception as e:
+            self.log_message(f"获取无人机 {drone_id} 失败: {e}", "ERROR")
+            messagebox.showerror("错误", f"无法获取无人机 {drone_id}")
+            return
+
+        if airplane is None:
+            self.log_message(f"无人机 {drone_id} 不存在", "ERROR")
+            messagebox.showerror("错误", f"无人机 {drone_id} 不存在")
+            return
+
+        # 发送清除所有图片缓存命令 (photo_id=0表示清除所有)
+        airplane.image_receiver.send_msg_clear_photo(photo_id=0)
+        self.log_message(f"→ 向无人机 {drone_id} 发送清除图片缓存命令")
+        self._update_photo_status("已发送清除缓存命令", "#F39C12")
 
     def generate_drone_panels(self):
         """生成无人机控制面板"""
