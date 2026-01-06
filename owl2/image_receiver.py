@@ -16,12 +16,14 @@ class ImageInfo:
     packet_cache: dict[int, tuple[int, bytes]] = dataclasses.field(default_factory=dict)
     # jpg formatted image data
     image_data: bytes = b""
-    # 已请求重传的块索引，避免重复请求
+    # 已请求重传的块索引，避免短时间内重复请求
     requested_packets: Set[int] = dataclasses.field(default_factory=set)
     # 最大已收到的块索引，用于乱序检测
     max_received_index: int = -1
     # 最后收到块的时间，用于超时检测
     last_packet_time: float = dataclasses.field(default_factory=time.time)
+    # 传输开始时间，用于总超时检测
+    start_time: float = dataclasses.field(default_factory=time.time)
 
 
 # 	 <entry value="286" name="MAV_CMD_EXT_DRONE_TAKE_PHOTO" hasLocation="false" isDestination="false">
@@ -68,8 +70,13 @@ class ImageReceiver:
     image_table: dict[int, ImageInfo]
     # 超时检测定时器
     _timeout_timer: Optional[threading.Timer]
-    # 超时时间（秒），如果这么长时间没有收到新块，认为传输可能完成或需要重传缺失块
-    PACKET_TIMEOUT: float = 2.0
+    # 包超时时间（秒），每个包约20ms，设置为300ms（约10个包的时间）可容忍一定波动
+    PACKET_TIMEOUT: float = 0.3
+    # 乱序容忍阈值：收到的包索引比期望索引大于此值时才认为丢包
+    # 由于包间有业务数据干扰，允许轻微乱序（约3个包）
+    OUT_OF_ORDER_THRESHOLD: int = 3
+    # 总超时时间（秒），超过此时间强制结束（丢包情况下约5秒）
+    TOTAL_TIMEOUT: float = 6.0
     # 完成回调
     _image_complete_callback: Optional[Callable[[int, bytes], None]]
 
@@ -152,10 +159,15 @@ class ImageReceiver:
         image_info.packet_cache[packet_index] = (packet_checksum, packet_data)
         image_info.last_packet_time = time.time()
 
-        # 乱序检测：如果收到的块索引大于已收到的最大索引+1，说明中间有块可能丢失
-        if packet_index > image_info.max_received_index + 1:
-            # 检查从上一个最大索引到当前索引之间缺失的块
-            for missing_idx in range(image_info.max_received_index + 1, packet_index):
+        # 如果这个包之前请求过重传，现在收到了，从requested中移除以便后续可以再次请求
+        if packet_index in image_info.requested_packets:
+            image_info.requested_packets.discard(packet_index)
+
+        # 乱序检测：只有当跳跃超过阈值时才认为丢包
+        expected_index = image_info.max_received_index + 1
+        if packet_index > expected_index + self.OUT_OF_ORDER_THRESHOLD:
+            # 检查从期望索引到当前索引之间缺失的块
+            for missing_idx in range(expected_index, packet_index):
                 if missing_idx not in image_info.packet_cache and missing_idx not in image_info.requested_packets:
                     # 请求重传该块
                     image_info.requested_packets.add(missing_idx)
@@ -199,10 +211,20 @@ class ImageReceiver:
         if image_info.total_packets <= 0:
             return
 
+        # 检查总超时
+        elapsed = time.time() - image_info.start_time
+        if elapsed > self.TOTAL_TIMEOUT:
+            # 总超时，强制完成（可能图像不完整）
+            self._complete_image(photo_id)
+            return
+
+        # 清除之前的请求标记，允许再次请求未收到的包
+        image_info.requested_packets.clear()
+
         # 找出所有缺失的块并请求重传
         missing_count = 0
         for i in range(image_info.total_packets):
-            if i not in image_info.packet_cache and i not in image_info.requested_packets:
+            if i not in image_info.packet_cache:
                 image_info.requested_packets.add(i)
                 self._send_msg_request_missing_packet(photo_id, i)
                 missing_count += 1
