@@ -12,6 +12,7 @@ from .airplane_interface import (
     IAirplane, FlyModeEnum, FlyModeAutoEnum, FlyModeStableEnum,
     AirplaneState, MavLinkPacketRecord
 )
+from .image_receiver import ImageReceiver
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +39,7 @@ class CommandStatus:
         self.is_stopped = False  # 新增：标记是否被停止
         self.last_update = time.time()
         self.create_time = time.time()
+        self.ack_result_param2: int = 0
 
 
 class AirplaneOwl02(IAirplane):
@@ -68,6 +70,8 @@ class AirplaneOwl02(IAirplane):
         # 线程池用于异步重发
         self.executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="cmd_retry")
 
+        self.image_receiver = ImageReceiver(self)
+
         # 消息解析表
         self.parse_table: Dict[int, Callable[[Any], None]] = {
             mavlink2.MAVLINK_MSG_ID_HEARTBEAT: self._parse_heartbeat,
@@ -77,6 +81,8 @@ class AirplaneOwl02(IAirplane):
             mavlink2.MAVLINK_MSG_ID_COMMAND_ACK: self._parse_ack,
             mavlink2.MAVLINK_MSG_ID_GLOBAL_POSITION_INT: self._parse_gps_pos,
             mavlink2.MAVLINK_MSG_ID_BATTERY_STATUS: self._parse_battery_status,
+            mavlink2.MAVLINK_MSG_ID_PHOTO_TOTAL_INFORMATION_ADDR_XINGUANGFEI: self.image_receiver.on_image_info,
+            mavlink2.MAVLINK_MSG_ID_PHOTO_TRANSMISSION_XINGUANGFEI: self.image_receiver.on_image_packet,
         }
 
         # 需要缓存的包ID集合
@@ -148,9 +154,21 @@ class AirplaneOwl02(IAirplane):
             self.command_sequence += 1
             return self.command_sequence
 
+    def send_command_with_retry(self, command: int, param1=0, param2=0, param3=0,
+                                param4=0, param5=0, param6=0, param7=0,
+                                wait_for_finish=False, timeout=5.0, async_mode=None, max_retries=None,
+                                ack_callback: Optional[Callable[[CommandStatus], None]] = None):
+        return self._send_command_with_retry(
+            command, param1, param2, param3,
+            param4, param5, param6, param7,
+            wait_for_finish, timeout, async_mode, max_retries,
+            ack_callback,
+        )
+
     def _send_command_with_retry(self, command: int, param1=0, param2=0, param3=0,
                                  param4=0, param5=0, param6=0, param7=0,
-                                 wait_for_finish=False, timeout=5.0, async_mode=None, max_retries=None):
+                                 wait_for_finish=False, timeout=5.0, async_mode=None, max_retries=None,
+                                 ack_callback: Optional[Callable[[CommandStatus], None]] = None):
         """
         发送命令并自动重试（支持异步非阻塞模式）
         :param command: 命令ID
@@ -241,24 +259,28 @@ class AirplaneOwl02(IAirplane):
                                 logger.error(
                                     f"Command {command} seq={sequence} ts={timestamp} rejected by device {self.target_channel_id}")
                                 self._cleanup_active_command(key)
+                                ack_callback(status)
                                 return False
 
                             if status.is_received and not wait_for_finish:
                                 logger.info(
                                     f"Command {command} seq={sequence} ts={timestamp} received by device {self.target_channel_id}")
                                 self._cleanup_active_command(key)
+                                ack_callback(status)
                                 return True
 
                             if status.is_finished:
                                 logger.info(
                                     f"Command {command} seq={sequence} ts={timestamp} finished by device {self.target_channel_id}")
                                 self._cleanup_active_command(key)
+                                ack_callback(status)
                                 return True
 
                             # 检查是否被停止
                             if status.is_stopped:
                                 logger.info(f"Command {command} seq={sequence} ts={timestamp} stopped by new command")
                                 self._cleanup_active_command(key)
+                                ack_callback(status)
                                 return False
 
                     # 检查总超时
@@ -404,6 +426,8 @@ class AirplaneOwl02(IAirplane):
                         continue
 
                     status.last_update = time.time()
+
+                    status.ack_result_param2 = message.result_param2
 
                     if result == RECEIVE_COMMAND:
                         status.receive_count += 1
