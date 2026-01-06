@@ -135,6 +135,7 @@ class ImageReceiver:
         """
         photo_id = message.photo_id
         total_packets = message.total_num
+        print('ImageReceiver.on_image_info: photo_id=[{}], total_packets=[{}]'.format(photo_id, total_packets))
         if photo_id not in self.image_table:
             self.image_table[photo_id] = ImageInfo(photo_id=photo_id, total_packets=total_packets)
         else:
@@ -149,6 +150,7 @@ class ImageReceiver:
         """
         photo_id = message.photo_id
         packet_index = message.index
+        print('ImageReceiver.on_image_packet: photo_id=[{}], packet_index=[{}]'.format(photo_id, packet_index))
         packet_data = bytes(message.data)
         packet_checksum = message.checksum
         if photo_id not in self.image_table:
