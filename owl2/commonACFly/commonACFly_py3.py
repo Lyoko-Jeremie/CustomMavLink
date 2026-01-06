@@ -1905,7 +1905,7 @@ enums["MAV_CMD"][277].param[6] = """Empty"""
 enums["MAV_CMD"][277].param[7] = """timestemp"""
 MAV_CMD_EXT_DRONE_HOVER = 278
 enums["MAV_CMD"][278] = EnumEntry("MAV_CMD_EXT_DRONE_HOVER", """xinguangfei """)
-enums["MAV_CMD"][278].param[1] = """1ï¼šhover"""
+enums["MAV_CMD"][278].param[1] = """1£ºhover"""
 enums["MAV_CMD"][278].param[3] = """Empty"""
 enums["MAV_CMD"][278].param[3] = """Empty"""
 enums["MAV_CMD"][278].param[4] = """Empty"""
@@ -1914,7 +1914,7 @@ enums["MAV_CMD"][278].param[6] = """Empty"""
 enums["MAV_CMD"][278].param[7] = """timestemp"""
 MAV_CMD_EXT_DRONE_URGENT_DISARM = 279
 enums["MAV_CMD"][279] = EnumEntry("MAV_CMD_EXT_DRONE_URGENT_DISARM", """xinguangfei """)
-enums["MAV_CMD"][279].param[1] = """1ï¼šdisarm"""
+enums["MAV_CMD"][279].param[1] = """1£ºdisarm"""
 enums["MAV_CMD"][279].param[3] = """Empty"""
 enums["MAV_CMD"][279].param[3] = """Empty"""
 enums["MAV_CMD"][279].param[4] = """Empty"""
@@ -1975,6 +1975,15 @@ enums["MAV_CMD"][285].param[4] = """Breathe"""
 enums["MAV_CMD"][285].param[5] = """rainbow"""
 enums["MAV_CMD"][285].param[6] = """Empty"""
 enums["MAV_CMD"][285].param[7] = """timestemp"""
+MAV_CMD_EXT_DRONE_TAKE_PHOTO = 286
+enums["MAV_CMD"][286] = EnumEntry("MAV_CMD_EXT_DRONE_TAKE_PHOTO", """xinguangfei ext take photo""")
+enums["MAV_CMD"][286].param[1] = """cmd"""
+enums["MAV_CMD"][286].param[2] = """Empty"""
+enums["MAV_CMD"][286].param[3] = """Empty"""
+enums["MAV_CMD"][286].param[4] = """Empty"""
+enums["MAV_CMD"][286].param[5] = """Empty"""
+enums["MAV_CMD"][286].param[6] = """Empty"""
+enums["MAV_CMD"][286].param[7] = """timestemp"""
 MAV_CMD_EXT_DRONE_TOTAL = 290
 enums["MAV_CMD"][290] = EnumEntry("MAV_CMD_EXT_DRONE_TOTAL", """xinguangfei ext set mode""")
 enums["MAV_CMD"][290].param[1] = """Empty"""
@@ -5658,6 +5667,10 @@ MAVLINK_MSG_ID_COMPONENT_EXTENSION43 = 500
 MAVLINK_MSG_ID_BATTERY_STATUS_ACFLY = 602
 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_REQUEST_XINGUANGFEI = 800
 MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI = 801
+MAVLINK_MSG_ID_PHOTO_TOTAL_INFORMATION_ADDR_XINGUANGFEI = 804
+MAVLINK_MSG_ID_PHOTO_TRANSMISSION_XINGUANGFEI = 805
+MAVLINK_MSG_ID_PHOTO_TOTAL_REQUEST_XINGUANGFEI = 806
+MAVLINK_MSG_ID_PHOTO_CLEAR_XINGUANGFEI = 808
 MAVLINK_MSG_ID_WHEEL_DISTANCE = 9000
 MAVLINK_MSG_ID_WINCH_STATUS = 9005
 MAVLINK_MSG_ID_OPEN_DRONE_ID_BASIC_ID = 12900
@@ -16252,9 +16265,7 @@ setattr(MAVLink_one_to_more_addr_request_xinguangfei_message, "name", mavlink_ms
 
 class MAVLink_one_to_more_addr_xinguangfei_message(MAVLink_message):
     """
-    Battery information. Updates GCS with flight controller battery
-    status. Smart batteries also use this message, but may
-    additionally send SMART_BATTERY_INFO.
+    xinguangfei pair code
     """
 
     id = MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI
@@ -16290,6 +16301,163 @@ class MAVLink_one_to_more_addr_xinguangfei_message(MAVLink_message):
 # Define name on the class for backwards compatibility (it is now msgname).
 # Done with setattr to hide the class variable from mypy.
 setattr(MAVLink_one_to_more_addr_xinguangfei_message, "name", mavlink_msg_deprecated_name_property())
+
+
+class MAVLink_photo_total_information_addr_xinguangfei_message(MAVLink_message):
+    """
+    xinguangfei photo imformation
+    """
+
+    id = MAVLINK_MSG_ID_PHOTO_TOTAL_INFORMATION_ADDR_XINGUANGFEI
+    msgname = "PHOTO_TOTAL_INFORMATION_ADDR_XINGUANGFEI"
+    fieldnames = ["photo_id", "total_num"]
+    ordered_fieldnames = ["photo_id", "total_num"]
+    fieldtypes = ["uint8_t", "uint8_t"]
+    fielddisplays_by_name: Dict[str, str] = {}
+    fieldenums_by_name: Dict[str, str] = {}
+    fieldunits_by_name: Dict[str, str] = {}
+    native_format = bytearray(b"<BB")
+    orders = [0, 1]
+    lengths = [1, 1]
+    array_lengths = [0, 0]
+    crc_extra = 183
+    unpacker = struct.Struct("<BB")
+    instance_field = "total_num"
+    instance_offset = 1
+
+    def __init__(self, photo_id: int, total_num: int):
+        MAVLink_message.__init__(self, MAVLink_photo_total_information_addr_xinguangfei_message.id, MAVLink_photo_total_information_addr_xinguangfei_message.msgname)
+        self._fieldnames = MAVLink_photo_total_information_addr_xinguangfei_message.fieldnames
+        self._instance_field = MAVLink_photo_total_information_addr_xinguangfei_message.instance_field
+        self._instance_offset = MAVLink_photo_total_information_addr_xinguangfei_message.instance_offset
+        self.photo_id = photo_id
+        self.total_num = total_num
+
+    def pack(self, mav: "MAVLink", force_mavlink1: bool = False) -> bytes:
+        return self._pack(mav, self.crc_extra, self.unpacker.pack(self.photo_id, self.total_num), force_mavlink1=force_mavlink1)
+
+
+# Define name on the class for backwards compatibility (it is now msgname).
+# Done with setattr to hide the class variable from mypy.
+setattr(MAVLink_photo_total_information_addr_xinguangfei_message, "name", mavlink_msg_deprecated_name_property())
+
+
+class MAVLink_photo_transmission_xinguangfei_message(MAVLink_message):
+    """
+    xinguangfei photo data
+    """
+
+    id = MAVLINK_MSG_ID_PHOTO_TRANSMISSION_XINGUANGFEI
+    msgname = "PHOTO_TRANSMISSION_XINGUANGFEI"
+    fieldnames = ["index", "photo_id", "data", "checksum"]
+    ordered_fieldnames = ["index", "photo_id", "data", "checksum"]
+    fieldtypes = ["uint8_t", "uint8_t", "uint8_t", "uint8_t"]
+    fielddisplays_by_name: Dict[str, str] = {}
+    fieldenums_by_name: Dict[str, str] = {}
+    fieldunits_by_name: Dict[str, str] = {}
+    native_format = bytearray(b"<BBBB")
+    orders = [0, 1, 2, 3]
+    lengths = [1, 1, 64, 1]
+    array_lengths = [0, 0, 64, 0]
+    crc_extra = 250
+    unpacker = struct.Struct("<BB64BB")
+    instance_field = "photo_id"
+    instance_offset = 1
+
+    def __init__(self, index: int, photo_id: int, data: Sequence[int], checksum: int):
+        MAVLink_message.__init__(self, MAVLink_photo_transmission_xinguangfei_message.id, MAVLink_photo_transmission_xinguangfei_message.msgname)
+        self._fieldnames = MAVLink_photo_transmission_xinguangfei_message.fieldnames
+        self._instance_field = MAVLink_photo_transmission_xinguangfei_message.instance_field
+        self._instance_offset = MAVLink_photo_transmission_xinguangfei_message.instance_offset
+        self.index = index
+        self.photo_id = photo_id
+        self.data = data
+        self.checksum = checksum
+
+    def pack(self, mav: "MAVLink", force_mavlink1: bool = False) -> bytes:
+        return self._pack(mav, self.crc_extra, self.unpacker.pack(self.index, self.photo_id, self.data[0], self.data[1], self.data[2], self.data[3], self.data[4], self.data[5], self.data[6], self.data[7], self.data[8], self.data[9], self.data[10], self.data[11], self.data[12], self.data[13], self.data[14], self.data[15], self.data[16], self.data[17], self.data[18], self.data[19], self.data[20], self.data[21], self.data[22], self.data[23], self.data[24], self.data[25], self.data[26], self.data[27], self.data[28], self.data[29], self.data[30], self.data[31], self.data[32], self.data[33], self.data[34], self.data[35], self.data[36], self.data[37], self.data[38], self.data[39], self.data[40], self.data[41], self.data[42], self.data[43], self.data[44], self.data[45], self.data[46], self.data[47], self.data[48], self.data[49], self.data[50], self.data[51], self.data[52], self.data[53], self.data[54], self.data[55], self.data[56], self.data[57], self.data[58], self.data[59], self.data[60], self.data[61], self.data[62], self.data[63], self.checksum), force_mavlink1=force_mavlink1)
+
+
+# Define name on the class for backwards compatibility (it is now msgname).
+# Done with setattr to hide the class variable from mypy.
+setattr(MAVLink_photo_transmission_xinguangfei_message, "name", mavlink_msg_deprecated_name_property())
+
+
+class MAVLink_photo_total_request_xinguangfei_message(MAVLink_message):
+    """
+    xinguangfei photo request
+    """
+
+    id = MAVLINK_MSG_ID_PHOTO_TOTAL_REQUEST_XINGUANGFEI
+    msgname = "PHOTO_TOTAL_REQUEST_XINGUANGFEI"
+    fieldnames = ["photo_id", "index"]
+    ordered_fieldnames = ["photo_id", "index"]
+    fieldtypes = ["uint8_t", "uint8_t"]
+    fielddisplays_by_name: Dict[str, str] = {}
+    fieldenums_by_name: Dict[str, str] = {}
+    fieldunits_by_name: Dict[str, str] = {}
+    native_format = bytearray(b"<BB")
+    orders = [0, 1]
+    lengths = [1, 1]
+    array_lengths = [0, 0]
+    crc_extra = 205
+    unpacker = struct.Struct("<BB")
+    instance_field = "index"
+    instance_offset = 1
+
+    def __init__(self, photo_id: int, index: int):
+        MAVLink_message.__init__(self, MAVLink_photo_total_request_xinguangfei_message.id, MAVLink_photo_total_request_xinguangfei_message.msgname)
+        self._fieldnames = MAVLink_photo_total_request_xinguangfei_message.fieldnames
+        self._instance_field = MAVLink_photo_total_request_xinguangfei_message.instance_field
+        self._instance_offset = MAVLink_photo_total_request_xinguangfei_message.instance_offset
+        self.photo_id = photo_id
+        self.index = index
+
+    def pack(self, mav: "MAVLink", force_mavlink1: bool = False) -> bytes:
+        return self._pack(mav, self.crc_extra, self.unpacker.pack(self.photo_id, self.index), force_mavlink1=force_mavlink1)
+
+
+# Define name on the class for backwards compatibility (it is now msgname).
+# Done with setattr to hide the class variable from mypy.
+setattr(MAVLink_photo_total_request_xinguangfei_message, "name", mavlink_msg_deprecated_name_property())
+
+
+class MAVLink_photo_clear_xinguangfei_message(MAVLink_message):
+    """
+    xinguangfei photo finifsh
+    """
+
+    id = MAVLINK_MSG_ID_PHOTO_CLEAR_XINGUANGFEI
+    msgname = "PHOTO_CLEAR_XINGUANGFEI"
+    fieldnames = ["photo_id"]
+    ordered_fieldnames = ["photo_id"]
+    fieldtypes = ["uint8_t"]
+    fielddisplays_by_name: Dict[str, str] = {}
+    fieldenums_by_name: Dict[str, str] = {}
+    fieldunits_by_name: Dict[str, str] = {}
+    native_format = bytearray(b"<B")
+    orders = [0]
+    lengths = [1]
+    array_lengths = [0]
+    crc_extra = 223
+    unpacker = struct.Struct("<B")
+    instance_field = "photo_id"
+    instance_offset = 0
+
+    def __init__(self, photo_id: int):
+        MAVLink_message.__init__(self, MAVLink_photo_clear_xinguangfei_message.id, MAVLink_photo_clear_xinguangfei_message.msgname)
+        self._fieldnames = MAVLink_photo_clear_xinguangfei_message.fieldnames
+        self._instance_field = MAVLink_photo_clear_xinguangfei_message.instance_field
+        self._instance_offset = MAVLink_photo_clear_xinguangfei_message.instance_offset
+        self.photo_id = photo_id
+
+    def pack(self, mav: "MAVLink", force_mavlink1: bool = False) -> bytes:
+        return self._pack(mav, self.crc_extra, self.unpacker.pack(self.photo_id), force_mavlink1=force_mavlink1)
+
+
+# Define name on the class for backwards compatibility (it is now msgname).
+# Done with setattr to hide the class variable from mypy.
+setattr(MAVLink_photo_clear_xinguangfei_message, "name", mavlink_msg_deprecated_name_property())
 
 
 class MAVLink_wheel_distance_message(MAVLink_message):
@@ -17183,6 +17351,10 @@ mavlink_map: Dict[int, Type[MAVLink_message]] = {
     MAVLINK_MSG_ID_BATTERY_STATUS_ACFLY: MAVLink_battery_status_acfly_message,
     MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_REQUEST_XINGUANGFEI: MAVLink_one_to_more_addr_request_xinguangfei_message,
     MAVLINK_MSG_ID_ONE_TO_MORE_ADDR_XINGUANGFEI: MAVLink_one_to_more_addr_xinguangfei_message,
+    MAVLINK_MSG_ID_PHOTO_TOTAL_INFORMATION_ADDR_XINGUANGFEI: MAVLink_photo_total_information_addr_xinguangfei_message,
+    MAVLINK_MSG_ID_PHOTO_TRANSMISSION_XINGUANGFEI: MAVLink_photo_transmission_xinguangfei_message,
+    MAVLINK_MSG_ID_PHOTO_TOTAL_REQUEST_XINGUANGFEI: MAVLink_photo_total_request_xinguangfei_message,
+    MAVLINK_MSG_ID_PHOTO_CLEAR_XINGUANGFEI: MAVLink_photo_clear_xinguangfei_message,
     MAVLINK_MSG_ID_WHEEL_DISTANCE: MAVLink_wheel_distance_message,
     MAVLINK_MSG_ID_WINCH_STATUS: MAVLink_winch_status_message,
     MAVLINK_MSG_ID_OPEN_DRONE_ID_BASIC_ID: MAVLink_open_drone_id_basic_id_message,
@@ -18136,7 +18308,7 @@ class MAVLink(object):
         ymag                      : Y Magnetic field [mgauss] (type:int16_t)
         zmag                      : Z Magnetic field [mgauss] (type:int16_t)
         temperature               : Temperature, 0: IMU does not provide temperature values. If the IMU is at 0C it must send 1 (0.01C). [cdegC] (type:int16_t)
-        daoYaw                    : åŒå¤©çº¿ä¼ æ„Ÿå™¨1è§’åº¦ [0.1deg] (type:int16_t)
+        daoYaw                    : Ë«ÌìÏß´«¸ÐÆ÷1½Ç¶È [0.1deg] (type:int16_t)
 
         """
         return MAVLink_scaled_imu_message(time_boot_ms, xacc, yacc, zacc, xgyro, ygyro, zgyro, xmag, ymag, zmag, temperature, daoYaw)
@@ -18157,7 +18329,7 @@ class MAVLink(object):
         ymag                      : Y Magnetic field [mgauss] (type:int16_t)
         zmag                      : Z Magnetic field [mgauss] (type:int16_t)
         temperature               : Temperature, 0: IMU does not provide temperature values. If the IMU is at 0C it must send 1 (0.01C). [cdegC] (type:int16_t)
-        daoYaw                    : åŒå¤©çº¿ä¼ æ„Ÿå™¨1è§’åº¦ [0.1deg] (type:int16_t)
+        daoYaw                    : Ë«ÌìÏß´«¸ÐÆ÷1½Ç¶È [0.1deg] (type:int16_t)
 
         """
         self.send(self.scaled_imu_encode(time_boot_ms, xacc, yacc, zacc, xgyro, ygyro, zgyro, xmag, ymag, zmag, temperature, daoYaw), force_mavlink1=force_mavlink1)
@@ -25712,9 +25884,7 @@ class MAVLink(object):
 
     def one_to_more_addr_xinguangfei_encode(self, mtx_address: Sequence[int], mrx_address_ack: Sequence[int], mrx_address_p1: Sequence[int]) -> MAVLink_one_to_more_addr_xinguangfei_message:
         """
-        Battery information. Updates GCS with flight controller battery
-        status. Smart batteries also use this message, but may
-        additionally send SMART_BATTERY_INFO.
+        xinguangfei pair code
 
         mtx_address               : mtx address (type:uint8_t)
         mrx_address_ack           : mrx address ack [%] (type:uint8_t)
@@ -25725,9 +25895,7 @@ class MAVLink(object):
 
     def one_to_more_addr_xinguangfei_send(self, mtx_address: Sequence[int], mrx_address_ack: Sequence[int], mrx_address_p1: Sequence[int], force_mavlink1: bool = False) -> None:
         """
-        Battery information. Updates GCS with flight controller battery
-        status. Smart batteries also use this message, but may
-        additionally send SMART_BATTERY_INFO.
+        xinguangfei pair code
 
         mtx_address               : mtx address (type:uint8_t)
         mrx_address_ack           : mrx address ack [%] (type:uint8_t)
@@ -25735,6 +25903,88 @@ class MAVLink(object):
 
         """
         self.send(self.one_to_more_addr_xinguangfei_encode(mtx_address, mrx_address_ack, mrx_address_p1), force_mavlink1=force_mavlink1)
+
+    def photo_total_information_addr_xinguangfei_encode(self, photo_id: int, total_num: int) -> MAVLink_photo_total_information_addr_xinguangfei_message:
+        """
+        xinguangfei photo imformation
+
+        photo_id                  : id (type:uint8_t)
+        total_num                 : index (type:uint8_t)
+
+        """
+        return MAVLink_photo_total_information_addr_xinguangfei_message(photo_id, total_num)
+
+    def photo_total_information_addr_xinguangfei_send(self, photo_id: int, total_num: int, force_mavlink1: bool = False) -> None:
+        """
+        xinguangfei photo imformation
+
+        photo_id                  : id (type:uint8_t)
+        total_num                 : index (type:uint8_t)
+
+        """
+        self.send(self.photo_total_information_addr_xinguangfei_encode(photo_id, total_num), force_mavlink1=force_mavlink1)
+
+    def photo_transmission_xinguangfei_encode(self, index: int, photo_id: int, data: Sequence[int], checksum: int) -> MAVLink_photo_transmission_xinguangfei_message:
+        """
+        xinguangfei photo data
+
+        index                     : index (type:uint8_t)
+        photo_id                  : id (type:uint8_t)
+        data                      : data (type:uint8_t)
+        checksum                  : checksum (type:uint8_t)
+
+        """
+        return MAVLink_photo_transmission_xinguangfei_message(index, photo_id, data, checksum)
+
+    def photo_transmission_xinguangfei_send(self, index: int, photo_id: int, data: Sequence[int], checksum: int, force_mavlink1: bool = False) -> None:
+        """
+        xinguangfei photo data
+
+        index                     : index (type:uint8_t)
+        photo_id                  : id (type:uint8_t)
+        data                      : data (type:uint8_t)
+        checksum                  : checksum (type:uint8_t)
+
+        """
+        self.send(self.photo_transmission_xinguangfei_encode(index, photo_id, data, checksum), force_mavlink1=force_mavlink1)
+
+    def photo_total_request_xinguangfei_encode(self, photo_id: int, index: int) -> MAVLink_photo_total_request_xinguangfei_message:
+        """
+        xinguangfei photo request
+
+        photo_id                  : id (type:uint8_t)
+        index                     : index (type:uint8_t)
+
+        """
+        return MAVLink_photo_total_request_xinguangfei_message(photo_id, index)
+
+    def photo_total_request_xinguangfei_send(self, photo_id: int, index: int, force_mavlink1: bool = False) -> None:
+        """
+        xinguangfei photo request
+
+        photo_id                  : id (type:uint8_t)
+        index                     : index (type:uint8_t)
+
+        """
+        self.send(self.photo_total_request_xinguangfei_encode(photo_id, index), force_mavlink1=force_mavlink1)
+
+    def photo_clear_xinguangfei_encode(self, photo_id: int) -> MAVLink_photo_clear_xinguangfei_message:
+        """
+        xinguangfei photo finifsh
+
+        photo_id                  : id  0:clear all  >=1:Specified ID (type:uint8_t)
+
+        """
+        return MAVLink_photo_clear_xinguangfei_message(photo_id)
+
+    def photo_clear_xinguangfei_send(self, photo_id: int, force_mavlink1: bool = False) -> None:
+        """
+        xinguangfei photo finifsh
+
+        photo_id                  : id  0:clear all  >=1:Specified ID (type:uint8_t)
+
+        """
+        self.send(self.photo_clear_xinguangfei_encode(photo_id), force_mavlink1=force_mavlink1)
 
     def wheel_distance_encode(self, time_usec: int, count: int, distance: Sequence[float]) -> MAVLink_wheel_distance_message:
         """
