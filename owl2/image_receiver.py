@@ -1,6 +1,8 @@
 import dataclasses
 import functools
-from typing import Optional, Callable
+import threading
+import time
+from typing import Optional, Callable, Set
 
 from .commonACFly import commonACFly_py3 as mavlink2
 
@@ -14,6 +16,12 @@ class ImageInfo:
     packet_cache: dict[int, tuple[int, bytes]] = dataclasses.field(default_factory=dict)
     # jpg formatted image data
     image_data: bytes = b""
+    # 已请求重传的块索引，避免重复请求
+    requested_packets: Set[int] = dataclasses.field(default_factory=set)
+    # 最大已收到的块索引，用于乱序检测
+    max_received_index: int = -1
+    # 最后收到块的时间，用于超时检测
+    last_packet_time: float = dataclasses.field(default_factory=time.time)
 
 
 # 	 <entry value="286" name="MAV_CMD_EXT_DRONE_TAKE_PHOTO" hasLocation="false" isDestination="false">
@@ -58,10 +66,18 @@ class ImageReceiver:
     airplane: 'AirplaneOwl02'
     # dict[photo_id, ImageInfo]
     image_table: dict[int, ImageInfo]
+    # 超时检测定时器
+    _timeout_timer: Optional[threading.Timer]
+    # 超时时间（秒），如果这么长时间没有收到新块，认为传输可能完成或需要重传缺失块
+    PACKET_TIMEOUT: float = 2.0
+    # 完成回调
+    _image_complete_callback: Optional[Callable[[int, bytes], None]]
 
     def __init__(self, airplane: 'AirplaneOwl02'):
         self.airplane = airplane
         self.image_table = {}
+        self._timeout_timer = None
+        self._image_complete_callback = None
         pass
 
     def _clean_image_table(self, photo_id: int = 0):
@@ -134,24 +150,107 @@ class ImageReceiver:
             return
         image_info = self.image_table[photo_id]
         image_info.packet_cache[packet_index] = (packet_checksum, packet_data)
-        # TODO check checksum and request missing packets 806
+        image_info.last_packet_time = time.time()
+
+        # 乱序检测：如果收到的块索引大于已收到的最大索引+1，说明中间有块可能丢失
+        if packet_index > image_info.max_received_index + 1:
+            # 检查从上一个最大索引到当前索引之间缺失的块
+            for missing_idx in range(image_info.max_received_index + 1, packet_index):
+                if missing_idx not in image_info.packet_cache and missing_idx not in image_info.requested_packets:
+                    # 请求重传该块
+                    image_info.requested_packets.add(missing_idx)
+                    self._send_msg_request_missing_packet(photo_id, missing_idx)
+
+        # 更新最大已收到块索引
+        if packet_index > image_info.max_received_index:
+            image_info.max_received_index = packet_index
+
+        # 重置超时定时器
+        self._reset_timeout_timer(photo_id)
 
         # check if all packets received
-        if len(image_info.packet_cache) == image_info.total_packets:
-            # combine image data
-            image_data = bytearray()
-            for i in range(image_info.total_packets):
-                if i in image_info.packet_cache:
-                    checksum, data = image_info.packet_cache[i]
-                    image_data.extend(data)
-                else:
-                    # missing packet, should not happen here
-                    return
-            image_info.image_data = bytes(image_data)
-            # send 808 to clear photo data in drone
-            self.send_msg_clear_photo(photo_id=photo_id)
-            # TODO notify image received , callback
+        if image_info.total_packets > 0 and len(image_info.packet_cache) == image_info.total_packets:
+            self._complete_image(photo_id)
         pass
+
+    def _reset_timeout_timer(self, photo_id: int):
+        """
+        重置超时定时器，用于检测长时间未收到新块的情况
+        """
+        if self._timeout_timer is not None:
+            self._timeout_timer.cancel()
+        self._timeout_timer = threading.Timer(self.PACKET_TIMEOUT, self._on_timeout, args=[photo_id])
+        self._timeout_timer.daemon = True
+        self._timeout_timer.start()
+
+    def _on_timeout(self, photo_id: int):
+        """
+        超时处理：检查并请求所有缺失的块
+        """
+        if photo_id not in self.image_table:
+            return
+        image_info = self.image_table[photo_id]
+
+        # 如果已经完成，不需要处理
+        if image_info.image_data:
+            return
+
+        # 如果还不知道总块数，无法判断缺失
+        if image_info.total_packets <= 0:
+            return
+
+        # 找出所有缺失的块并请求重传
+        missing_count = 0
+        for i in range(image_info.total_packets):
+            if i not in image_info.packet_cache and i not in image_info.requested_packets:
+                image_info.requested_packets.add(i)
+                self._send_msg_request_missing_packet(photo_id, i)
+                missing_count += 1
+
+        # 如果有缺失块，重新设置超时定时器等待重传
+        if missing_count > 0:
+            self._reset_timeout_timer(photo_id)
+        # 如果所有块都收到，完成图像
+        elif len(image_info.packet_cache) == image_info.total_packets:
+            self._complete_image(photo_id)
+
+    def _complete_image(self, photo_id: int):
+        """
+        完成图像接收：合并所有块并通知
+        """
+        if photo_id not in self.image_table:
+            return
+        image_info = self.image_table[photo_id]
+
+        # 取消超时定时器
+        if self._timeout_timer is not None:
+            self._timeout_timer.cancel()
+            self._timeout_timer = None
+
+        # 合并所有块
+        image_data = bytearray()
+        for i in range(image_info.total_packets):
+            if i in image_info.packet_cache:
+                checksum, data = image_info.packet_cache[i]
+                image_data.extend(data)
+            else:
+                # 仍有缺失块，不应该到这里
+                return
+        image_info.image_data = bytes(image_data)
+
+        # 通知完成
+        if self._image_complete_callback is not None:
+            self._image_complete_callback(photo_id, image_info.image_data)
+
+        # 发送808清除无人机端数据
+        self.send_msg_clear_photo(photo_id=photo_id)
+
+    def set_image_complete_callback(self, callback: Optional[Callable[[int, bytes], None]]):
+        """
+        设置图像接收完成回调
+        :param callback: function(photo_id: int, image_data: bytes)
+        """
+        self._image_complete_callback = callback
 
     def get_image(self, photo_id: int) -> bytes | bool:
         """
