@@ -91,6 +91,11 @@ class ImageReceiver:
         pass
 
     def on_image_info(self, message: mavlink2.MAVLink_photo_total_information_addr_xinguangfei_message):
+        """
+        call by AirplaneOwl02
+        :param message:
+        :return:
+        """
         photo_id = message.photo_id
         total_packets = message.total_num
         if photo_id not in self.image_table:
@@ -100,6 +105,11 @@ class ImageReceiver:
         pass
 
     def on_image_packet(self, message: mavlink2.MAVLink_photo_transmission_xinguangfei_message):
+        """
+        call by AirplaneOwl02
+        :param message:
+        :return:
+        """
         photo_id = message.photo_id
         packet_index = message.index
         packet_data = bytes(message.data)
@@ -141,7 +151,7 @@ class ImageReceiver:
                 return image_info.image_data
         return None
 
-    def capture_image(self, callback: Optional[Callable[[int], None]] = None) -> int:
+    def capture_image(self, callback: Optional[Callable[[int|None], None]] = None) -> int:
         """
         send command 286 to capture image
         :return: photo_id
@@ -157,12 +167,20 @@ class ImageReceiver:
         return photo_id
 
     def _when_capture_image_ack(self, cmd_status: 'CommandStatus',
-                                callback: Optional[Callable[[int], None]] = None) -> None:
+                                callback: Optional[Callable[[int|None], None]] = None) -> None:
+        """
+        call in capture_image()
+        :param cmd_status:
+        :param callback:
+        :return:
+        """
         if cmd_status.is_finished or cmd_status.is_received:
             if cmd_status.ack_result_param2 is not None and cmd_status.ack_result_param2 != 0:
                 photo_id = cmd_status.ack_result_param2
                 self.image_table[photo_id] = ImageInfo(photo_id=photo_id, total_packets=0)
                 if callback is not None:
                     callback(photo_id)
-            pass
+            else:
+                if callback is not None:
+                    callback(None)
         pass
