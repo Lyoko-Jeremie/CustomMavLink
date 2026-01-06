@@ -64,6 +64,19 @@ class ImageReceiver:
         self.image_table = {}
         pass
 
+    def _clean_image_table(self, photo_id: int = 0):
+        """
+        clean image_table after send 808
+        :param photo_id:  0: clear all photos, >=1: clear specified photo id
+        :return:
+        """
+        if photo_id != 0:
+            if photo_id in self.image_table:
+                del self.image_table[photo_id]
+        else:
+            self.image_table.clear()
+        pass
+
     def send_msg_clear_photo(self, photo_id: int = 0):
         """
         send msg 808 to clear photo data in drone
@@ -73,10 +86,11 @@ class ImageReceiver:
         self.airplane.send_command_with_retry(
             mavlink2.MAVLINK_MSG_ID_PHOTO_CLEAR_XINGUANGFEI,
             param1=photo_id,
+            ack_callback=lambda x: self._clean_image_table(photo_id),
         )
         pass
 
-    def send_msg_request_missing_packet(self, photo_id: int, packet_index: int):
+    def _send_msg_request_missing_packet(self, photo_id: int, packet_index: int):
         """
         send msg 806 to request missing photo packet
         :param photo_id:
@@ -115,7 +129,7 @@ class ImageReceiver:
         packet_data = bytes(message.data)
         packet_checksum = message.checksum
         if photo_id not in self.image_table:
-            # TODO clean this image 808
+            # clean this image 808
             self.send_msg_clear_photo(photo_id=photo_id)
             return
         image_info = self.image_table[photo_id]
@@ -139,21 +153,26 @@ class ImageReceiver:
             # TODO notify image received , callback
         pass
 
-    def get_image(self, photo_id: int) -> bytes | None:
+    def get_image(self, photo_id: int) -> bytes | bool:
         """
         get received image data by photo_id
+        user call this after capture_image() to the image data
         :param photo_id:
-        :return: image data in bytes, or None if not found or not complete
+        :return: image data in bytes, or True if image is still being received, or False if no such photo_id
         """
         if photo_id in self.image_table:
             image_info = self.image_table[photo_id]
             if image_info.image_data:
                 return image_info.image_data
-        return None
+            else:
+                return True
+        return False
 
-    def capture_image(self, callback: Optional[Callable[[int|None], None]] = None) -> int:
+    def capture_image(self, callback: Optional[Callable[[int | None], None]] = None) -> int:
         """
         send command 286 to capture image
+        user call this , then wait for callback to get photo_id
+        :param callback: function(photo_id: int|None)
         :return: photo_id
         """
         # use current timestamp as photo_id
@@ -167,7 +186,7 @@ class ImageReceiver:
         return photo_id
 
     def _when_capture_image_ack(self, cmd_status: 'CommandStatus',
-                                callback: Optional[Callable[[int|None], None]] = None) -> None:
+                                callback: Optional[Callable[[int | None], None]] = None) -> None:
         """
         call in capture_image()
         :param cmd_status:
