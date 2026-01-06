@@ -9,7 +9,14 @@ import logging
 from datetime import datetime
 from typing import Optional, Dict, List, Set
 import time
+import os
+import io
 from owl2.airplane_manager_owl02 import create_manager_with_serial, AirplaneOwl02
+try:
+    from PIL import Image, ImageTk
+except ImportError:
+    Image = None
+    ImageTk = None
 try:
     from serial.tools import list_ports
 except Exception:
@@ -102,7 +109,7 @@ class MultiDroneControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("多无人机协同控制系统")
-        self.root.geometry("1600x1000")
+        self.root.geometry("1920x1000")
 
         self.manager = None
         self.cmd_queue: Optional[ManagerCommandQueue] = None
@@ -110,6 +117,13 @@ class MultiDroneControlGUI:
         # 无人机状态管理
         self.drone_panels: Dict[int, Dict] = {}  # 存储每个无人机的UI组件
         self.global_selection: Set[int] = set()  # 全局选中的无人机ID
+
+        # 照片接收相关状态
+        self.current_photo_drone_id: Optional[int] = None  # 当前拍照的无人机ID
+        self.current_photo_id: Optional[int] = None  # 当前接收的照片ID
+        self.photo_progress: float = 0.0  # 照片传输进度 0.0 ~ 1.0
+        self.received_image: Optional[bytes] = None  # 接收到的图片数据
+        self.photo_tk_image = None  # 用于显示的Tk图片对象
 
         self.setup_ui()
 
@@ -126,7 +140,7 @@ class MultiDroneControlGUI:
         )
         title_label.pack(fill="x")
 
-        # 主容器 - 分为左右两部分
+        # 主容器 - 分为左中右三部分
         main_container = tk.Frame(self.root)
         main_container.pack(fill="both", expand=True, padx=10, pady=5)
 
@@ -134,9 +148,13 @@ class MultiDroneControlGUI:
         left_section = tk.Frame(main_container)
         left_section.pack(side="left", fill="both", expand=False, padx=(0, 5))
 
-        # 右侧：无人机面板和日志（上下布局）
+        # 中间：无人机面板和日志（上下布局）
+        middle_section = tk.Frame(main_container)
+        middle_section.pack(side="left", fill="both", expand=True, padx=(5, 5))
+
+        # 右侧：照片控制面板
         right_section = tk.Frame(main_container)
-        right_section.pack(side="right", fill="both", expand=True, padx=(5, 0))
+        right_section.pack(side="right", fill="both", expand=False, padx=(5, 0))
 
         # ==================== 左侧布局（上下） ====================
         # 上部：初始化区域
@@ -151,18 +169,24 @@ class MultiDroneControlGUI:
 
         self._create_global_control_panel(global_control_frame)
 
-        # ==================== 右侧布局（上下） ====================
+        # ==================== 中间布局（上下） ====================
         # 上部：无人机面板区域（可滚动）
-        drones_panel_frame = ttk.LabelFrame(right_section, text="无人机控制面板", padding=10)
+        drones_panel_frame = ttk.LabelFrame(middle_section, text="无人机控制面板", padding=10)
         drones_panel_frame.pack(side="top", fill="both", expand=True, pady=(0, 5))
 
         self._create_drones_panel(drones_panel_frame)
 
         # 下部：日志输出区域
-        log_frame = ttk.LabelFrame(right_section, text="系统日志", padding=10)
+        log_frame = ttk.LabelFrame(middle_section, text="系统日志", padding=10)
         log_frame.pack(side="top", fill="both", expand=False, pady=(5, 0))
 
         self._create_log_panel(log_frame)
+
+        # ==================== 右侧布局：照片面板 ====================
+        photo_frame = ttk.LabelFrame(right_section, text="照片拍摄与接收", padding=10)
+        photo_frame.pack(side="top", fill="both", expand=True)
+
+        self._create_photo_panel(photo_frame)
 
         # 底部状态栏
         self._create_status_bar()
@@ -572,6 +596,301 @@ class MultiDroneControlGUI:
             padx=10
         )
         self.status_label.pack(side="left", fill="x", expand=True)
+
+    def _create_photo_panel(self, parent):
+        """创建照片拍摄与接收面板"""
+        # 无人机选择
+        drone_select_frame = tk.Frame(parent)
+        drone_select_frame.pack(fill="x", pady=5)
+
+        tk.Label(drone_select_frame, text="选择无人机ID:", font=("Arial", 10)).pack(side="left", padx=5)
+        self.photo_drone_id_spinbox = tk.Spinbox(drone_select_frame, from_=0, to=15, width=5)
+        self.photo_drone_id_spinbox.delete(0, tk.END)
+        self.photo_drone_id_spinbox.insert(0, "0")
+        self.photo_drone_id_spinbox.pack(side="left", padx=5)
+
+        # 拍照按钮
+        self.btn_take_photo = tk.Button(
+            parent,
+            text="📷 拍摄照片",
+            command=self.take_photo,
+            bg="#9C27B0",
+            fg="white",
+            font=("Arial", 12, "bold"),
+            height=2
+        )
+        self.btn_take_photo.pack(fill="x", pady=10)
+
+        # 传输状态
+        status_frame = tk.Frame(parent)
+        status_frame.pack(fill="x", pady=5)
+
+        tk.Label(status_frame, text="传输状态:", font=("Arial", 10)).pack(side="left", padx=5)
+        self.photo_status_label = tk.Label(
+            status_frame,
+            text="空闲",
+            font=("Arial", 10, "bold"),
+            fg="#27AE60"
+        )
+        self.photo_status_label.pack(side="left", padx=5)
+
+        # 进度条 (Bitmap风格)
+        progress_frame = tk.Frame(parent)
+        progress_frame.pack(fill="x", pady=5)
+
+        tk.Label(progress_frame, text="传输进度:", font=("Arial", 10)).pack(side="left", padx=5)
+
+        # 使用Canvas创建bitmap风格的进度条
+        self.progress_canvas = tk.Canvas(progress_frame, width=200, height=20, bg="#ECF0F1", highlightthickness=1, highlightbackground="#BDC3C7")
+        self.progress_canvas.pack(side="left", padx=5, fill="x", expand=True)
+
+        self.progress_text_label = tk.Label(progress_frame, text="0%", font=("Arial", 9), width=5)
+        self.progress_text_label.pack(side="left", padx=5)
+
+        # 照片显示区域
+        photo_display_frame = ttk.LabelFrame(parent, text="接收到的照片", padding=5)
+        photo_display_frame.pack(fill="both", expand=True, pady=10)
+
+        # 照片显示Label
+        self.photo_display_label = tk.Label(
+            photo_display_frame,
+            text="暂无照片\n\n点击'拍摄照片'按钮\n开始拍摄",
+            bg="#ECF0F1",
+            font=("Arial", 10),
+            width=30,
+            height=15
+        )
+        self.photo_display_label.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # 保存状态
+        self.photo_save_label = tk.Label(
+            parent,
+            text="",
+            font=("Arial", 9),
+            fg="#27AE60"
+        )
+        self.photo_save_label.pack(fill="x", pady=5)
+
+        # 手动保存按钮
+        self.btn_save_photo = tk.Button(
+            parent,
+            text="💾 保存照片到桌面",
+            command=self.manual_save_photo,
+            bg="#3498DB",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            state='disabled'
+        )
+        self.btn_save_photo.pack(fill="x", pady=5)
+
+    def take_photo(self):
+        """触发拍照"""
+        if not self.check_manager():
+            return
+
+        try:
+            drone_id = int(self.photo_drone_id_spinbox.get())
+        except ValueError:
+            self.log_message("无效的无人机ID", "ERROR")
+            messagebox.showerror("错误", "请输入有效的无人机ID")
+            return
+
+        # 获取无人机对象
+        try:
+            airplane = self.manager.get_airplane(drone_id)
+        except Exception as e:
+            self.log_message(f"获取无人机 {drone_id} 失败: {e}", "ERROR")
+            messagebox.showerror("错误", f"无法获取无人机 {drone_id}")
+            return
+
+        if airplane is None:
+            self.log_message(f"无人机 {drone_id} 不存在", "ERROR")
+            messagebox.showerror("错误", f"无人机 {drone_id} 不存在")
+            return
+
+        # 重置状态
+        self.current_photo_drone_id = drone_id
+        self.current_photo_id = None
+        self.photo_progress = 0.0
+        self.received_image = None
+        self.btn_save_photo.config(state='disabled')
+
+        # 更新UI状态
+        self.photo_status_label.config(text="正在拍照...", fg="#F39C12")
+        self.photo_save_label.config(text="")
+        self._update_progress_bar(0.0)
+
+        # 设置图像接收完成回调
+        airplane.image_receiver.set_image_complete_callback(self._on_image_received)
+
+        # 发送拍照命令
+        def on_capture_callback(photo_id):
+            if photo_id is not None:
+                self.current_photo_id = photo_id
+                self.root.after(0, lambda: self._update_photo_status(f"照片ID: {photo_id}, 接收中...", "#3498DB"))
+                self.log_message(f"✓ 无人机 {drone_id} 开始拍照，照片ID: {photo_id}")
+                # 启动进度更新定时器
+                self._start_progress_monitor(airplane, photo_id)
+            else:
+                self.root.after(0, lambda: self._update_photo_status("拍照失败", "#E74C3C"))
+                self.log_message(f"✗ 无人机 {drone_id} 拍照失败", "ERROR")
+
+        airplane.image_receiver.capture_image(callback=on_capture_callback)
+        self.log_message(f"→ 向无人机 {drone_id} 发送拍照命令")
+
+    def _update_photo_status(self, text, color):
+        """更新照片状态标签"""
+        self.photo_status_label.config(text=text, fg=color)
+
+    def _start_progress_monitor(self, airplane: AirplaneOwl02, photo_id: int):
+        """启动进度监控"""
+        def update_progress():
+            if photo_id not in airplane.image_receiver.image_table:
+                return
+
+            image_info = airplane.image_receiver.image_table[photo_id]
+
+            # 如果已经收到图像数据，停止监控
+            if image_info.image_data:
+                return
+
+            # 计算进度
+            if image_info.total_packets > 0:
+                progress = len(image_info.packet_cache) / image_info.total_packets
+            else:
+                progress = 0.0
+
+            self.photo_progress = progress
+            self.root.after(0, lambda: self._update_progress_bar(progress))
+
+            # 继续监控
+            if progress < 1.0:
+                self.root.after(100, update_progress)
+
+        self.root.after(100, update_progress)
+
+    def _update_progress_bar(self, progress: float):
+        """更新进度条 (bitmap风格)"""
+        self.progress_canvas.delete("all")
+
+        canvas_width = self.progress_canvas.winfo_width()
+        if canvas_width < 10:
+            canvas_width = 200
+
+        canvas_height = 20
+
+        # 绘制bitmap风格的进度条 (小方块)
+        block_width = 8
+        block_height = 16
+        block_spacing = 2
+        num_blocks = (canvas_width - 4) // (block_width + block_spacing)
+
+        filled_blocks = int(progress * num_blocks)
+
+        for i in range(num_blocks):
+            x1 = 2 + i * (block_width + block_spacing)
+            y1 = 2
+            x2 = x1 + block_width
+            y2 = y1 + block_height
+
+            if i < filled_blocks:
+                # 已填充的块 - 绿色渐变
+                color = "#27AE60" if i % 2 == 0 else "#2ECC71"
+            else:
+                # 未填充的块 - 灰色
+                color = "#BDC3C7"
+
+            self.progress_canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="")
+
+        # 更新百分比文本
+        percent = int(progress * 100)
+        self.progress_text_label.config(text=f"{percent}%")
+
+    def _on_image_received(self, photo_id: int, image_data: bytes):
+        """图像接收完成回调"""
+        self.received_image = image_data
+        self.photo_progress = 1.0
+
+        # 在主线程中更新UI
+        self.root.after(0, lambda: self._display_and_save_image(photo_id, image_data))
+
+    def _display_and_save_image(self, photo_id: int, image_data: bytes):
+        """显示并保存图像"""
+        # 更新进度条到100%
+        self._update_progress_bar(1.0)
+        self._update_photo_status("接收完成!", "#27AE60")
+
+        # 显示图片
+        if Image is not None and ImageTk is not None:
+            try:
+                # 从bytes创建图像
+                image = Image.open(io.BytesIO(image_data))
+
+                # 调整大小以适应显示区域
+                display_size = (280, 210)
+                image.thumbnail(display_size, Image.Resampling.LANCZOS)
+
+                # 转换为Tk可显示的格式
+                self.photo_tk_image = ImageTk.PhotoImage(image)
+
+                # 显示图片
+                self.photo_display_label.config(image=self.photo_tk_image, text="")
+            except Exception as e:
+                self.log_message(f"显示图片失败: {e}", "ERROR")
+                self.photo_display_label.config(text=f"图片显示失败\n{e}", image="")
+        else:
+            self.photo_display_label.config(text=f"照片已接收\n大小: {len(image_data)} bytes\n\n(需要PIL库才能显示图片)", image="")
+
+        # 自动保存到桌面
+        save_path = self._save_image_to_desktop(photo_id, image_data)
+        if save_path:
+            self.photo_save_label.config(text=f"已保存: {save_path}", fg="#27AE60")
+            self.log_message(f"✓ 照片已保存到: {save_path}")
+        else:
+            self.photo_save_label.config(text="保存失败", fg="#E74C3C")
+
+        # 启用手动保存按钮
+        self.btn_save_photo.config(state='normal')
+
+    def _save_image_to_desktop(self, photo_id: int, image_data: bytes) -> Optional[str]:
+        """保存图片到桌面"""
+        try:
+            # 获取桌面路径
+            desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+            if not os.path.exists(desktop_path):
+                # 尝试中文桌面路径
+                desktop_path = os.path.join(os.path.expanduser("~"), "桌面")
+            if not os.path.exists(desktop_path):
+                # 使用用户目录
+                desktop_path = os.path.expanduser("~")
+
+            # 生成文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"drone_{self.current_photo_drone_id}_photo_{photo_id}_{timestamp}.jpg"
+            filepath = os.path.join(desktop_path, filename)
+
+            # 保存文件
+            with open(filepath, 'wb') as f:
+                f.write(image_data)
+
+            return filepath
+        except Exception as e:
+            self.log_message(f"保存照片失败: {e}", "ERROR")
+            return None
+
+    def manual_save_photo(self):
+        """手动保存照片到桌面"""
+        if self.received_image is None:
+            messagebox.showwarning("警告", "没有可保存的照片")
+            return
+
+        photo_id = self.current_photo_id if self.current_photo_id else 0
+        save_path = self._save_image_to_desktop(photo_id, self.received_image)
+        if save_path:
+            self.photo_save_label.config(text=f"已保存: {save_path}", fg="#27AE60")
+            messagebox.showinfo("保存成功", f"照片已保存到:\n{save_path}")
+        else:
+            messagebox.showerror("保存失败", "无法保存照片")
 
     def generate_drone_panels(self):
         """生成无人机控制面板"""
