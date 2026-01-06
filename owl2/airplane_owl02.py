@@ -150,7 +150,7 @@ class AirplaneOwl02(IAirplane):
 
     def _send_command_with_retry(self, command: int, param1=0, param2=0, param3=0,
                                  param4=0, param5=0, param6=0, param7=0,
-                                 wait_for_finish=False, timeout=5.0, async_mode=None):
+                                 wait_for_finish=False, timeout=5.0, async_mode=None, max_retries=None):
         """
         发送命令并自动重试（支持异步非阻塞模式）
         :param command: 命令ID
@@ -200,8 +200,11 @@ class AirplaneOwl02(IAirplane):
         def _retry_task():
             retry_count = 0
             start_time = time.time()
+            _max_retries = self.max_retries
+            if max_retries is not None:
+                _max_retries = max_retries
 
-            while retry_count < self.max_retries:
+            while retry_count < _max_retries:
                 # 检查是否已被停止
                 with self.command_lock:
                     status = self.command_status.get(key)
@@ -226,7 +229,7 @@ class AirplaneOwl02(IAirplane):
                 )
                 self.send_msg(cmd)
                 logger.debug(
-                    f"Sent command {command} seq={sequence} ts={timestamp} to device {self.target_channel_id} (attempt {retry_count + 1}/{self.max_retries})")
+                    f"Sent command {command} seq={sequence} ts={timestamp} to device {self.target_channel_id} (attempt {retry_count + 1}/{_max_retries})")
 
                 # 等待应答
                 wait_start = time.time()
@@ -267,11 +270,11 @@ class AirplaneOwl02(IAirplane):
                     time.sleep(0.05)  # 50ms检查间隔
 
                 retry_count += 1
-                if retry_count < self.max_retries:
+                if retry_count < _max_retries:
                     logger.warning(
-                        f"Command {command} seq={sequence} ts={timestamp} no response, retrying... ({retry_count}/{self.max_retries})")
+                        f"Command {command} seq={sequence} ts={timestamp} no response, retrying... ({retry_count}/{_max_retries})")
 
-            logger.error(f"Command {command} seq={sequence} ts={timestamp} failed after {self.max_retries} retries")
+            logger.error(f"Command {command} seq={sequence} ts={timestamp} failed after {_max_retries} retries")
             self._cleanup_active_command(key)
             return False
 
