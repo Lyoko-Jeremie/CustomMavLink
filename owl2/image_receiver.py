@@ -59,6 +59,7 @@ class ImageInfo:
 # 	</message>
 
 # use 286 to take photo, then will receive a 804 message with total packets
+# send a 806 with photo id and packet index 255 to start receiving photo data
 # then receive multiple 805 messages with photo data packets
 # after all packets received, combine them into image data
 # if some packets missing, send 806 message to request missing packets
@@ -111,6 +112,21 @@ class ImageReceiver:
             param1=photo_id,
             ack_callback=lambda x: self._clean_image_table(photo_id),
         )
+        print('ImageReceiver.send_msg_clear_photo: photo_id=[{}]'.format(photo_id))
+        pass
+
+    def _send_start_receive_photo(self, photo_id: int):
+        """
+        send msg 806 to start receiving photo data
+        :param photo_id:
+        :return:
+        """
+        self.airplane.send_command_with_retry(
+            mavlink2.MAVLINK_MSG_ID_PHOTO_TOTAL_REQUEST_XINGUANGFEI,
+            param1=photo_id,
+            param2=255,  # 255 means start receiving all packets
+        )
+        print('ImageReceiver._send_start_receive_photo: photo_id=[{}]'.format(photo_id))
         pass
 
     def _send_msg_request_missing_packet(self, photo_id: int, packet_index: int):
@@ -140,6 +156,9 @@ class ImageReceiver:
             self.image_table[photo_id] = ImageInfo(photo_id=photo_id, total_packets=total_packets)
         else:
             self.image_table[photo_id].total_packets = total_packets
+            pass
+        # send msg 806 to start receiving photo data
+        self._send_start_receive_photo(photo_id=photo_id)
         pass
 
     def on_image_packet(self, message: mavlink2.MAVLink_photo_transmission_xinguangfei_message):
@@ -306,6 +325,7 @@ class ImageReceiver:
             param1=0,
             ack_callback=functools.partial(self._when_capture_image_ack, callback=callback),
         )
+        print('ImageReceiver.capture_image: requested photo_id=[{}]'.format(photo_id))
         return photo_id
 
     def _when_capture_image_ack(self, cmd_status: 'CommandStatus',
