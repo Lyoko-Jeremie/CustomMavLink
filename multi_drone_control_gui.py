@@ -109,7 +109,7 @@ class MultiDroneControlGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("多无人机协同控制系统")
-        self.root.geometry("1920x1000")
+        self.root.geometry("1500x1000")
 
         self.manager = None
         self.cmd_queue: Optional[ManagerCommandQueue] = None
