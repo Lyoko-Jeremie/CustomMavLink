@@ -320,9 +320,10 @@ class ImageReceiver:
         # use current timestamp as photo_id
         import time
         photo_id = int(time.time()) % 256  # keep it in uint8 range
-        self.airplane.send_command_with_retry(
+        self.airplane.send_command_without_retry(
             mavlink2.MAV_CMD_EXT_DRONE_TAKE_PHOTO,
             param1=0,
+            no_ack=True,
             ack_callback=functools.partial(self._when_capture_image_ack, callback=callback),
         )
         print('ImageReceiver.capture_image: requested photo_id=[{}]'.format(photo_id))

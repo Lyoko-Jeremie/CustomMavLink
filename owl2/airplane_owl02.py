@@ -309,6 +309,125 @@ class AirplaneOwl02(IAirplane):
             # 同步模式：阻塞等待完成
             return _retry_task()
 
+    def send_command_without_retry(self, command: int, param1=0, param2=0, param3=0,
+                                 param4=0, param5=0, param6=0, param7=0,
+                                 no_ack: bool = False,
+                                 ack_callback: Optional[Callable[[CommandStatus], None]] = None):
+        return self._send_command_without_retry(
+            command, param1, param2, param3,
+            param4, param5, param6, param7,
+            no_ack,
+            ack_callback,
+        )
+
+    def _send_command_without_retry(self, command: int, param1=0, param2=0, param3=0,
+                                 param4=0, param5=0, param6=0, param7=0,
+                                 no_ack: bool = False,
+                                 ack_callback: Optional[Callable[[CommandStatus], None]] = None):
+        """
+        发送命令不进行重试（单次发送）
+        :param command: 命令ID
+        :param param1-6: 命令参数
+        :param param7: 原始参数7（如果为0，则自动生成时间戳）
+        :param no_ack: 是否无需ACK确认（True表示命令不会返回ACK，直接视为发送成功）
+        :param ack_callback: ACK回调函数（可选），当收到ACK时调用（no_ack=True时会立即调用）
+        :return: 命令状态对象的key (command, sequence)，用于后续查询状态
+
+        注意：Param7 用作时间戳，用于识别包和避免接收端收到重复包
+        """
+        # 生成命令序列号和时间戳
+        sequence = self._get_next_sequence()
+        # 使用当前时间戳（毫秒级整数），如果param7已指定则使用指定值
+        # 限制在 0 到 8388607 (2^23 - 1) 范围内，确保float能精确表示
+        if param7 != 0:
+            timestamp = int(param7) & 0x7FFFFF  # 限制在23位
+        else:
+            timestamp = int(time.time() * 1000) & 0x7FFFFF  # 毫秒级时间戳，限制在23位
+        key = (command, sequence)
+
+        # 创建命令状态
+        with self.command_lock:
+            status = CommandStatus(command, sequence, timestamp)
+            # 如果是无ACK确认的命令，直接标记为已发送完成
+            if no_ack:
+                status.is_received = True
+                status.is_finished = True
+            self.command_status[key] = status
+
+        # 发送命令 - 使用时间戳作为param7
+        cmd = mavlink2.MAVLink_command_long_message(
+            target_system=1,
+            target_component=1,
+            command=command,
+            confirmation=0,
+            param1=param1,
+            param2=param2,
+            param3=param3,
+            param4=param4,
+            param5=param5,
+            param6=param6,
+            param7=timestamp  # 使用时间戳作为param7
+        )
+        self.send_msg(cmd)
+        logger.debug(
+            f"Sent command {command} seq={sequence} ts={timestamp} to device {self.target_channel_id} (no retry, no_ack={no_ack})")
+
+        # 如果是无ACK确认的命令，立即调用回调（如果有）
+        if no_ack:
+            if ack_callback is not None:
+                with self.command_lock:
+                    status = self.command_status.get(key)
+                    if status:
+                        ack_callback(status)
+            return key
+
+        # 如果提供了回调函数，启动一个异步任务等待ACK并调用回调
+        if ack_callback is not None:
+            def _wait_for_ack():
+                wait_start = time.time()
+                timeout = 5.0  # 等待ACK的超时时间
+                while time.time() - wait_start < timeout:
+                    with self.command_lock:
+                        status = self.command_status.get(key)
+                        if status:
+                            if status.is_error or status.is_received or status.is_finished:
+                                ack_callback(status)
+                                return
+                    time.sleep(0.05)  # 50ms检查间隔
+                # 超时后仍调用回调，让调用方知道状态
+                with self.command_lock:
+                    status = self.command_status.get(key)
+                    if status:
+                        ack_callback(status)
+
+            self.executor.submit(_wait_for_ack)
+
+        return key
+
+    def get_command_status(self, key: tuple) -> Optional[CommandStatus]:
+        """
+        根据key查询命令状态
+        :param key: 命令状态key，格式为 (command, sequence)，由 _send_command_without_retry 返回
+        :return: CommandStatus对象，如果不存在返回None
+
+        使用示例：
+            key = airplane._send_command_without_retry(command=123, param1=1)
+            # ... 稍后查询状态 ...
+            status = airplane.get_command_status(key)
+            if status:
+                if status.is_finished:
+                    print("命令已完成")
+                elif status.is_received:
+                    print("命令已接收")
+                elif status.is_error:
+                    print("命令执行出错")
+                else:
+                    print("等待响应中...")
+        """
+        with self.command_lock:
+            return self.command_status.get(key)
+
+
     def _cleanup_active_command(self, key: tuple):
         """清理活动命令状态"""
         with self.command_lock:
