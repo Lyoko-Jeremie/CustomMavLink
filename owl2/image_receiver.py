@@ -8,6 +8,14 @@ from .commonACFly import commonACFly_py3 as mavlink2
 
 
 @dataclasses.dataclass
+class PendingCaptureRequest:
+    """拍照请求的 pending 记录，用于跟踪超时"""
+    callback: Optional[Callable[[int | None], None]]
+    send_time: float
+    timeout_timer: Optional[threading.Timer] = None
+
+
+@dataclasses.dataclass
 class ImageInfo:
     photo_id: int
     total_packets: int
@@ -94,16 +102,18 @@ class ImageReceiver:
     TOTAL_TIMEOUT: float = 6.0
     # 完成回调
     _image_complete_callback: Optional[Callable[[int, bytes], None]]
-    # 拍照请求的 pending callback 队列
+    # 拍照请求的 pending 队列（FIFO），包含 callback 和超时定时器
     # 由于 send_command_without_retry 会立即返回，需要等待 on_take_photo_ack 收到 807 消息后再调用 callback
-    _pending_capture_callbacks: deque[Callable[[int | None], None]]
+    _pending_capture_requests: deque[PendingCaptureRequest]
+    # 拍照请求超时时间（秒），考虑到 286->807 延迟约 2-3 秒，设置为 5 秒
+    CAPTURE_TIMEOUT: float = 5.0
 
     def __init__(self, airplane: 'AirplaneOwl02'):
         self.airplane = airplane
         self.image_table = {}
         self._timeout_timer = None
         self._image_complete_callback = None
-        self._pending_capture_callbacks = deque()
+        self._pending_capture_requests = deque()
         pass
 
     def _clean_image_table(self, photo_id: int = 0):
@@ -333,11 +343,37 @@ class ImageReceiver:
         """
         send command 286 to capture image
         用户调用此函数发送拍照命令，实际的 photo_id 会在收到 807 消息后通过 callback 返回
-        :param callback: function(photo_id: int|None) - 成功时传入 photo_id，失败时传入 None
+
+        注意：
+        - 286 拍照操作不是幂等的，不能重发
+        - 拍照操作有时效性，会立即发送（即使有 pending 请求）
+        - 从发送 286 到收到 807 约有 2-3 秒延迟
+        - 如果超时（5秒）未收到 807，认为请求失败
+
+        :param callback: function(photo_id: int|None) - 成功时传入 photo_id，失败/超时时传入 None
         """
-        # 将 callback 加入 pending 队列，等待 on_take_photo_ack 收到 807 消息后调用
-        if callback is not None:
-            self._pending_capture_callbacks.append(callback)
+        # 创建 pending 请求记录
+        pending_request = PendingCaptureRequest(
+            callback=callback,
+            send_time=time.time(),
+            timeout_timer=None,
+        )
+
+        # 创建超时定时器
+        # 使用 lambda 捕获当前请求对象，以便超时时能准确识别是哪个请求超时
+        timeout_timer = threading.Timer(
+            self.CAPTURE_TIMEOUT,
+            self._on_capture_timeout,
+            args=[pending_request]
+        )
+        timeout_timer.daemon = True
+        pending_request.timeout_timer = timeout_timer
+
+        # 将请求加入 pending 队列
+        self._pending_capture_requests.append(pending_request)
+
+        # 启动超时定时器
+        timeout_timer.start()
 
         # 使用 send_command_without_retry 发送拍照命令
         # 命令会立即返回，photo_id 会在 on_take_photo_ack 中通过 807 消息获取
@@ -345,33 +381,69 @@ class ImageReceiver:
             mavlink2.MAV_CMD_EXT_DRONE_TAKE_PHOTO,
             param1=0,
         )
-        print('ImageReceiver.capture_image: sent take photo command, waiting for ack')
+        pending_count = len(self._pending_capture_requests)
+        print(f'ImageReceiver.capture_image: sent take photo command, pending_count=[{pending_count}], waiting for ack')
+        pass
+
+    def _on_capture_timeout(self, pending_request: PendingCaptureRequest):
+        """
+        拍照请求超时处理
+        可能是：1) 286 丢包对方没收到  2) 807 丢包我方没收到
+        无论哪种情况，都认为此次请求失败
+        """
+        # 检查该请求是否仍在队列中（可能已经被 on_take_photo_ack 处理了）
+        if pending_request not in self._pending_capture_requests:
+            return
+
+        # 从队列中移除
+        self._pending_capture_requests.remove(pending_request)
+
+        elapsed = time.time() - pending_request.send_time
+        print(f'ImageReceiver._on_capture_timeout: capture request timed out after {elapsed:.2f}s')
+
+        # 调用 callback 通知失败
+        if pending_request.callback is not None:
+            pending_request.callback(None)
         pass
 
     def on_take_photo_ack(self, message: mavlink2.MAVLink_take_photo_ack_xinguangfei_message):
         """
         call by AirplaneOwl02
         收到 807 消息后，根据 result 调用 capture_image 的 callback
+        按 FIFO 顺序匹配 pending 请求
         :param message:
         :return:
         """
         photo_id = message.photo_id
         result = message.result
-        print('ImageReceiver.on_take_photo_ack: photo_id=[{}], result=[{}]'.format(photo_id, result))
+        print(f'ImageReceiver.on_take_photo_ack: photo_id=[{photo_id}], result=[{result}]')
 
-        # 从 pending 队列中取出 callback 并调用
-        callback = None
-        if self._pending_capture_callbacks:
-            callback = self._pending_capture_callbacks.popleft()
+        # 从 pending 队列中取出最早的请求（FIFO）
+        pending_request: Optional[PendingCaptureRequest] = None
+        if self._pending_capture_requests:
+            pending_request = self._pending_capture_requests.popleft()
+
+            # 取消该请求的超时定时器
+            if pending_request.timeout_timer is not None:
+                pending_request.timeout_timer.cancel()
+                pending_request.timeout_timer = None
+
+            elapsed = time.time() - pending_request.send_time
+            print(f'ImageReceiver.on_take_photo_ack: matched pending request, elapsed={elapsed:.2f}s')
+        else:
+            # 收到了意外的 807 响应（没有对应的 pending 请求）
+            # 可能是超时后才收到的迟到响应，忽略
+            print('ImageReceiver.on_take_photo_ack: received unexpected ack, no pending request')
+            return
 
         if result == 0:
             # 拍照成功，初始化 image_table 条目并调用 callback
             if photo_id not in self.image_table:
                 self.image_table[photo_id] = ImageInfo(photo_id=photo_id, total_packets=0)
-            if callback is not None:
-                callback(photo_id)
+            if pending_request.callback is not None:
+                pending_request.callback(photo_id)
         else:
             # 拍照失败，调用 callback 传入 None
-            if callback is not None:
-                callback(None)
+            if pending_request.callback is not None:
+                pending_request.callback(None)
         pass
