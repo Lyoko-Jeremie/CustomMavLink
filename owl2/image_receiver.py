@@ -69,7 +69,10 @@ class ImageInfo:
 # 		<field type="uint8_t" name="photo_id" instance="true">id  0:clear all  >=1:Specified ID </field>
 # 	</message>
 
-# use 286 to take photo, then will receive a 804 message with total packets
+
+# 208 拍照 -> 807 确认拍照收到 -> 804 照片信息 -> 806 请求照片数据 -> 805 照片数据包 -> 808 清除照片数据
+# use 286 to take photo, will receive 807 with photo_id to know ok or not
+# then will receive a 804 message with total packets
 # send a 806 with photo id and packet index 255 to start receiving photo data
 # then receive multiple 805 messages with photo data packets
 # after all packets received, combine them into image data
@@ -338,23 +341,20 @@ class ImageReceiver:
             ack_callback=functools.partial(self._when_capture_image_ack, callback=callback),
         )
         print('ImageReceiver.capture_image: requested photo_id=[{}]'.format(photo_id))
+        # TODO wait for ack in on_take_photo_ack to get real photo_id , and call callback(photo_id/None)
+        self.airplane
         return photo_id
 
-    def _when_capture_image_ack(self, cmd_status: 'CommandStatus',
-                                callback: Optional[Callable[[int | None], None]] = None) -> None:
+    def on_take_photo_ack(self, message: mavlink2.MAVLink_take_photo_ack_xinguangfei_message):
         """
-        call in capture_image()
-        :param cmd_status:
-        :param callback:
+        call by AirplaneOwl02
+        :param message:
         :return:
         """
-        if cmd_status.is_finished or cmd_status.is_received:
-            if cmd_status.ack_result_param2 is not None and cmd_status.ack_result_param2 != 0:
-                photo_id = cmd_status.ack_result_param2
+        photo_id = message.photo_id
+        result = message.result
+        print('ImageReceiver.on_take_photo_ack: photo_id=[{}], result=[{}]'.format(photo_id, result))
+        if result != 0:
+            if photo_id not in self.image_table:
                 self.image_table[photo_id] = ImageInfo(photo_id=photo_id, total_packets=0)
-                if callback is not None:
-                    callback(photo_id)
-            else:
-                if callback is not None:
-                    callback(None)
         pass

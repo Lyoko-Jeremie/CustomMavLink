@@ -83,6 +83,7 @@ class AirplaneOwl02(IAirplane):
             mavlink2.MAVLINK_MSG_ID_BATTERY_STATUS: self._parse_battery_status,
             mavlink2.MAVLINK_MSG_ID_PHOTO_TOTAL_INFORMATION_ADDR_XINGUANGFEI: self.image_receiver.on_image_info,
             mavlink2.MAVLINK_MSG_ID_PHOTO_TRANSMISSION_XINGUANGFEI: self.image_receiver.on_image_packet,
+            mavlink2.MAVLINK_MSG_ID_TAKE_PHOTO_ACK_XINGUANGFEI: self.image_receiver.on_take_photo_ack,
         }
 
         # 需要缓存的包ID集合
