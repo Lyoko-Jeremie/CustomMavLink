@@ -1,7 +1,7 @@
 import dataclasses
-import functools
 import threading
 import time
+from collections import deque
 from typing import Optional, Callable, Set
 
 from .commonACFly import commonACFly_py3 as mavlink2
@@ -94,12 +94,16 @@ class ImageReceiver:
     TOTAL_TIMEOUT: float = 6.0
     # 完成回调
     _image_complete_callback: Optional[Callable[[int, bytes], None]]
+    # 拍照请求的 pending callback 队列
+    # 由于 send_command_without_retry 会立即返回，需要等待 on_take_photo_ack 收到 807 消息后再调用 callback
+    _pending_capture_callbacks: deque[Callable[[int | None], None]]
 
     def __init__(self, airplane: 'AirplaneOwl02'):
         self.airplane = airplane
         self.image_table = {}
         self._timeout_timer = None
         self._image_complete_callback = None
+        self._pending_capture_callbacks = deque()
         pass
 
     def _clean_image_table(self, photo_id: int = 0):
@@ -325,36 +329,49 @@ class ImageReceiver:
                 return True
         return False
 
-    def capture_image(self, callback: Optional[Callable[[int | None], None]] = None) -> int:
+    def capture_image(self, callback: Optional[Callable[[int | None], None]] = None):
         """
         send command 286 to capture image
-        user call this , then wait for callback to get photo_id
-        :param callback: function(photo_id: int|None)
-        :return: photo_id
+        用户调用此函数发送拍照命令，实际的 photo_id 会在收到 807 消息后通过 callback 返回
+        :param callback: function(photo_id: int|None) - 成功时传入 photo_id，失败时传入 None
         """
-        # use current timestamp as photo_id
-        import time
-        photo_id = int(time.time()) % 256  # keep it in uint8 range
-        self.airplane.send_command_with_retry(
+        # 将 callback 加入 pending 队列，等待 on_take_photo_ack 收到 807 消息后调用
+        if callback is not None:
+            self._pending_capture_callbacks.append(callback)
+
+        # 使用 send_command_without_retry 发送拍照命令
+        # 命令会立即返回，photo_id 会在 on_take_photo_ack 中通过 807 消息获取
+        self.airplane.send_command_without_retry(
             mavlink2.MAV_CMD_EXT_DRONE_TAKE_PHOTO,
             param1=0,
-            ack_callback=functools.partial(self._when_capture_image_ack, callback=callback),
         )
-        print('ImageReceiver.capture_image: requested photo_id=[{}]'.format(photo_id))
-        # TODO wait for ack in on_take_photo_ack to get real photo_id , and call callback(photo_id/None)
-        self.airplane
-        return photo_id
+        print('ImageReceiver.capture_image: sent take photo command, waiting for ack')
+        pass
 
     def on_take_photo_ack(self, message: mavlink2.MAVLink_take_photo_ack_xinguangfei_message):
         """
         call by AirplaneOwl02
+        收到 807 消息后，根据 result 调用 capture_image 的 callback
         :param message:
         :return:
         """
         photo_id = message.photo_id
         result = message.result
         print('ImageReceiver.on_take_photo_ack: photo_id=[{}], result=[{}]'.format(photo_id, result))
-        if result != 0:
+
+        # 从 pending 队列中取出 callback 并调用
+        callback = None
+        if self._pending_capture_callbacks:
+            callback = self._pending_capture_callbacks.popleft()
+
+        if result == 0:
+            # 拍照成功，初始化 image_table 条目并调用 callback
             if photo_id not in self.image_table:
                 self.image_table[photo_id] = ImageInfo(photo_id=photo_id, total_packets=0)
+            if callback is not None:
+                callback(photo_id)
+        else:
+            # 拍照失败，调用 callback 传入 None
+            if callback is not None:
+                callback(None)
         pass
