@@ -26,6 +26,7 @@ class ImageInfo:
     start_time: float = dataclasses.field(default_factory=time.time)
 
 
+#               拍照请求，无人机收到后拍照并存储照片数据，返回照片ID（uint8）
 # 	 <entry value="286" name="MAV_CMD_EXT_DRONE_TAKE_PHOTO" hasLocation="false" isDestination="false">
 #       <description>xinguangfei ext take photo</description>
 #       <param index="1" label="cmd" minValue="0" maxValue="1" default="0">cmd</param>
@@ -36,11 +37,13 @@ class ImageInfo:
 # 		<param index="6">Empty</param>
 # 		<param index="7">timestemp</param>
 #    </entry>
+#               传输开始时的第一个包，照片信息，包括照片ID和总包数
 # 	<message id="804" name="PHOTO_TOTAL_INFORMATION_ADDR_XINGUANGFEI">
 # 		<description>xinguangfei photo imformation</description>
 # 		<field type="uint8_t" name="photo_id" instance="true">id</field>
 # 		<field type="uint8_t" name="total_num" instance="true">index</field>
 # 	</message>
+#               数据体传输包，包含照片ID，包索引，数据和校验和
 # 	<message id="805" name="PHOTO_TRANSMISSION_XINGUANGFEI">
 # 		<description>xinguangfei photo data</description>
 # 		<field type="uint8_t" name="index">index</field>
@@ -48,11 +51,19 @@ class ImageInfo:
 # 		<field type="uint8_t[64]" name="data" invalid="UINT8_MAX">data</field>
 # 		<field type="uint8_t" name="checksum" invalid="UINT8_MAX">checksum</field>
 # 	</message>
+#               请求缺失的包
 # 	<message id="806" name="PHOTO_TOTAL_REQUEST_XINGUANGFEI">
 # 		<description>xinguangfei photo request</description>
 # 		<field type="uint8_t" name="photo_id" instance="true">id</field>
 # 		<field type="uint8_t" name="index" instance="true">index</field>
 # 	</message>
+#               拍照请求 MAV_CMD_EXT_DRONE_TAKE_PHOTO 的响应，包含照片ID和是否成功
+# 	<message id="807" name="TAKE_PHOTO_ACK_XINGUANGFEI">
+# 		<description>xinguangfei photo request</description>
+# 		<field type="uint8_t" name="photo_id" instance="true">id</field>
+# 		<field type="uint8_t" name="result" instance="true">result</field>
+# 	</message>
+#               当接受完毕时，清除无人机端数据。或者在开始前清除之前的数据(photo_id=0)
 # 	<message id="808" name="PHOTO_CLEAR_XINGUANGFEI">
 # 		<description>xinguangfei photo finifsh</description>
 # 		<field type="uint8_t" name="photo_id" instance="true">id  0:clear all  >=1:Specified ID </field>
@@ -107,7 +118,8 @@ class ImageReceiver:
         :param photo_id:  0: clear all photos, >=1: clear specified photo id
         :return:
         """
-        self.airplane.send_command_with_retry(
+        # TODO need ack ?
+        self.airplane.send_command_without_retry(
             mavlink2.MAVLINK_MSG_ID_PHOTO_CLEAR_XINGUANGFEI,
             param1=photo_id,
             ack_callback=lambda x: self._clean_image_table(photo_id),
@@ -121,7 +133,7 @@ class ImageReceiver:
         :param photo_id:
         :return:
         """
-        self.airplane.send_command_with_retry(
+        self.airplane.send_command_without_retry(
             mavlink2.MAVLINK_MSG_ID_PHOTO_TOTAL_REQUEST_XINGUANGFEI,
             param1=photo_id,
             param2=255,  # 255 means start receiving all packets
@@ -136,7 +148,7 @@ class ImageReceiver:
         :param packet_index:
         :return:
         """
-        self.airplane.send_command_with_retry(
+        self.airplane.send_command_without_retry(
             mavlink2.MAVLINK_MSG_ID_PHOTO_TOTAL_REQUEST_XINGUANGFEI,
             param1=photo_id,
             param2=packet_index,
@@ -320,10 +332,9 @@ class ImageReceiver:
         # use current timestamp as photo_id
         import time
         photo_id = int(time.time()) % 256  # keep it in uint8 range
-        self.airplane.send_command_without_retry(
+        self.airplane.send_command_with_retry(
             mavlink2.MAV_CMD_EXT_DRONE_TAKE_PHOTO,
             param1=0,
-            no_ack=True,
             ack_callback=functools.partial(self._when_capture_image_ack, callback=callback),
         )
         print('ImageReceiver.capture_image: requested photo_id=[{}]'.format(photo_id))
