@@ -26,7 +26,10 @@ import dataclasses
 import threading
 import time
 from collections import deque
-from typing import Optional, Callable, Set
+from typing import TYPE_CHECKING, Optional, Callable, Set
+
+if TYPE_CHECKING:
+    from .airplane_owl02 import AirplaneOwl02
 
 from .commonACFly import commonACFly_py3 as mavlink2
 
