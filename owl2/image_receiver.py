@@ -78,7 +78,7 @@ class ImageInfo:
 # 	</message>
 
 
-# 208 拍照 -> 807 确认拍照收到 -> 804 照片信息 -> 806 请求照片数据 -> 805 照片数据包 -> 808 清除照片数据
+# 286 拍照 -> 807 确认拍照收到 -> 804 照片信息 -> 806 请求照片数据 -> 805 照片数据包 -> 808 清除照片数据
 # use 286 to take photo, will receive 807 with photo_id to know ok or not
 # then will receive a 804 message with total packets
 # send a 806 with photo id and packet index 255 to start receiving photo data
@@ -346,13 +346,18 @@ class ImageReceiver:
 
         注意：
         - 286 拍照操作不是幂等的，不能重发
-        - 拍照操作有时效性，会立即发送（即使有 pending 请求）
+        - 拍照操作有时效性，应该立即发送
         - 从发送 286 到收到 807 约有 2-3 秒延迟
         - 如果超时（5秒）未收到 807，认为请求失败
+        - 允许多个 pending 请求并行等待，按 FIFO 匹配 807 响应
+        - 对端行为：远端处理286期间收到新286会立即返回失败807，利用此机制保证至少一个callback成功
 
         :param callback: function(photo_id: int|None) - 成功时传入 photo_id，失败/超时时传入 None
         """
         # 创建 pending 请求记录
+        # 不在本地取消旧请求，而是利用对端的失败807作为取消信号
+        # 对端在处理286期间收到新286会立即返回失败807，这个失败807会被FIFO匹配给旧请求
+        # 这样可以保证：只要有一个286成功处理，最后一个callback能收到正确的photo_id
         pending_request = PendingCaptureRequest(
             callback=callback,
             send_time=time.time(),
@@ -360,7 +365,6 @@ class ImageReceiver:
         )
 
         # 创建超时定时器
-        # 使用 lambda 捕获当前请求对象，以便超时时能准确识别是哪个请求超时
         timeout_timer = threading.Timer(
             self.CAPTURE_TIMEOUT,
             self._on_capture_timeout,
@@ -411,6 +415,12 @@ class ImageReceiver:
         call by AirplaneOwl02
         收到 807 消息后，根据 result 调用 capture_image 的 callback
         按 FIFO 顺序匹配 pending 请求
+
+        注意：对端行为
+        - 对端在处理286期间（2-3秒），如果收到新的286，会立即返回失败的807
+        - 处理完成后才返回原来的807（成功/失败）
+        - 因此可能出现：我们已经取消了旧请求，但对端仍然处理完成并返回成功807
+
         :param message:
         :return:
         """
@@ -430,20 +440,29 @@ class ImageReceiver:
 
             elapsed = time.time() - pending_request.send_time
             print(f'ImageReceiver.on_take_photo_ack: matched pending request, elapsed={elapsed:.2f}s')
-        else:
-            # 收到了意外的 807 响应（没有对应的 pending 请求）
-            # 可能是超时后才收到的迟到响应，忽略
-            print('ImageReceiver.on_take_photo_ack: received unexpected ack, no pending request')
-            return
 
         if result == 0:
-            # 拍照成功，初始化 image_table 条目并调用 callback
+            # 拍照成功，初始化 image_table 条目
+            # 即使没有 pending 请求（被取消的旧请求），也要处理成功的 photo_id
+            # 因为对端已经拍照并存储了数据，后续 804/805 流程需要正常工作
             if photo_id not in self.image_table:
                 self.image_table[photo_id] = ImageInfo(photo_id=photo_id, total_packets=0)
-            if pending_request.callback is not None:
-                pending_request.callback(photo_id)
+
+            if pending_request is not None:
+                # 有匹配的 pending 请求，调用 callback
+                if pending_request.callback is not None:
+                    pending_request.callback(photo_id)
+            else:
+                # 意外的成功807（被取消的旧请求的响应）
+                # 对端已经拍照，我们将其添加到 image_table，后续可以通过 _image_complete_callback 获取
+                print(f'ImageReceiver.on_take_photo_ack: unexpected success ack (from cancelled request), photo_id=[{photo_id}] added to image_table')
         else:
-            # 拍照失败，调用 callback 传入 None
-            if pending_request.callback is not None:
-                pending_request.callback(None)
+            # 拍照失败
+            if pending_request is not None:
+                # 有匹配的 pending 请求，调用 callback
+                if pending_request.callback is not None:
+                    pending_request.callback(None)
+            else:
+                # 意外的失败807，忽略
+                print('ImageReceiver.on_take_photo_ack: unexpected failure ack, ignored')
         pass
