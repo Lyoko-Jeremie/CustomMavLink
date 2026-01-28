@@ -106,7 +106,7 @@ class ImageReceiver:
     # 超时检查定时器
     _capture_timeout_timer: Optional[threading.Timer]
     # 拍照请求超时时间（秒），考虑到 286->807 延迟约 2-3 秒，设置为 5 秒
-    CAPTURE_TIMEOUT: float = 5.0
+    CAPTURE_TIMEOUT: float = 20.0
 
     def __init__(self, airplane: 'AirplaneOwl02'):
         self.airplane = airplane
@@ -367,9 +367,13 @@ class ImageReceiver:
         self._start_capture_timeout_checker()
 
         # 使用 send_command_without_retry 发送拍照命令
-        self.airplane.send_command_without_retry(
+        self.airplane.send_command_with_retry(
             mavlink2.MAV_CMD_EXT_DRONE_TAKE_PHOTO,
             param1=0,
+            timeout=10.0,
+            max_retries=0,  # 不重试
+            async_mode=False,
+            ack_callback=lambda x: print(f'ImageReceiver.capture_image: take photo command ack received', x)
         )
         pending_count = len(self._pending_capture_requests)
         print(f'ImageReceiver.capture_image: sent take photo command, pending_count=[{pending_count}], waiting for ack')
