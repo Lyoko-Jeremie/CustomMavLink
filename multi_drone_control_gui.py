@@ -125,6 +125,10 @@ class MultiDroneControlGUI:
         self.received_image: Optional[bytes] = None  # 接收到的图片数据
         self.photo_tk_image = None  # 用于显示的Tk图片对象
 
+        # 自动更新相关
+        self.update_after_id: Optional[str] = None  # 定时更新任务ID
+        self.update_interval: int = 500  # 更新间隔（毫秒）
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -1048,6 +1052,45 @@ class MultiDroneControlGUI:
         status_text.pack(side="left", padx=5)
         panel['status_text'] = status_text
 
+        # 障碍物距离和更新时间显示（同一行）
+        obstacle_frame = tk.Frame(frame, bg="#ECF0F1")
+        obstacle_frame.pack(fill="x", pady=(0, 5))
+
+        tk.Label(
+            obstacle_frame,
+            text="障碍物距离:",
+            font=("Arial", 9),
+            bg="#ECF0F1"
+        ).pack(side="left", padx=5)
+
+        obstacle_distance_label = tk.Label(
+            obstacle_frame,
+            text="---",
+            font=("Arial", 9, "bold"),
+            fg="#3498DB",
+            bg="#ECF0F1"
+        )
+        obstacle_distance_label.pack(side="left", padx=5)
+        panel['obstacle_distance'] = obstacle_distance_label
+
+        tk.Label(
+            obstacle_frame,
+            text="更新时间:",
+            font=("Arial", 8),
+            fg="#7F8C8D",
+            bg="#ECF0F1"
+        ).pack(side="left", padx=10)
+
+        obstacle_time_label = tk.Label(
+            obstacle_frame,
+            text="---",
+            font=("Arial", 8),
+            fg="#95A5A6",
+            bg="#ECF0F1"
+        )
+        obstacle_time_label.pack(side="left", padx=5)
+        panel['obstacle_time'] = obstacle_time_label
+
         # 快捷操作按钮（两行）
         quick_frame = tk.Frame(frame)
         quick_frame.pack(fill="x", pady=3)
@@ -1243,6 +1286,10 @@ class MultiDroneControlGUI:
             self.log_message("✓ 系统初始化成功")
             self.update_status("系统已初始化")
 
+            # 启动自动更新任务
+            if hasattr(self, 'root'):
+                self.root.after(0, self._start_auto_update)
+
         self.run_in_thread(_init)
 
     def disconnect_and_reset(self):
@@ -1265,6 +1312,14 @@ class MultiDroneControlGUI:
 
             self.manager = None
             self.cmd_queue = None
+
+            # 停止自动更新任务
+            if self.update_after_id:
+                try:
+                    self.root.after_cancel(self.update_after_id)
+                    self.update_after_id = None
+                except Exception:
+                    pass
 
             try:
                 if hasattr(self, 'root'):
@@ -1641,6 +1696,75 @@ class MultiDroneControlGUI:
     def clear_log(self):
         """清空日志"""
         self.log_text.delete(1.0, tk.END)
+
+    def _start_auto_update(self):
+        """启动自动更新任务"""
+        if self.manager and self.drone_panels:
+            self._update_obstacle_distance()
+
+    def _update_obstacle_distance(self):
+        """更新所有无人机的障碍物距离显示"""
+        try:
+            if not self.manager:
+                return
+
+            for drone_id, panel in self.drone_panels.items():
+                try:
+                    # 获取无人机对象
+                    airplane = None
+                    if hasattr(self.manager, 'get_airplane'):
+                        try:
+                            airplane = self.manager.get_airplane(drone_id)
+                        except Exception:
+                            airplane = None
+
+                    if airplane and hasattr(airplane, 'obstacle_distance_cache_info'):
+                        cache_info = airplane.obstacle_distance_cache_info
+
+                        # 获取距离值
+                        distance = cache_info.get('distance', 0)
+                        last_update_time = cache_info.get('last_update_time', 0)
+
+                        # 更新距离显示
+                        if distance > 0:
+                            distance_text = f"{distance} mm"
+                            distance_color = "#27AE60" if distance > 1000 else "#F39C12" if distance > 500 else "#E74C3C"
+                        else:
+                            distance_text = "---"
+                            distance_color = "#3498DB"
+
+                        panel['obstacle_distance'].config(text=distance_text, fg=distance_color)
+
+                        # 更新时间显示
+                        if last_update_time > 0:
+                            # 计算相对于现在的时间差
+                            time_diff = time.time() - last_update_time
+                            if time_diff < 1:
+                                time_text = "刚刚"
+                            elif time_diff < 60:
+                                time_text = f"{int(time_diff)}秒前"
+                            elif time_diff < 3600:
+                                time_text = f"{int(time_diff/60)}分钟前"
+                            else:
+                                # 显示具体时间
+                                from datetime import datetime
+                                time_text = datetime.fromtimestamp(last_update_time).strftime("%H:%M:%S")
+
+                            panel['obstacle_time'].config(text=time_text)
+                        else:
+                            panel['obstacle_time'].config(text="---")
+                except Exception as e:
+                    logger.debug(f"更新无人机 {drone_id} 的障碍物距离时出错: {e}")
+
+        except Exception as e:
+            logger.error(f"更新障碍物距离时出错: {e}")
+
+        # 继续定时更新
+        try:
+            if self.manager and self.root:
+                self.update_after_id = self.root.after(self.update_interval, self._update_obstacle_distance)
+        except Exception:
+            pass
 
     def update_status(self, status):
         """更新状态栏"""
