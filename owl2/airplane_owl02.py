@@ -45,6 +45,8 @@ class CommandStatus:
 class AirplaneOwl02(IAirplane):
     """无人机对象类 - 基于BR&XGF控制协议2.0"""
 
+    obstacle_distance_change_callback: Optional[Callable[[int], None]] = None  # 障碍物距离变化回调
+
     def __init__(self, target_channel_id: int, manager: 'AirplaneManagerOwl02'):
         self.target_channel_id = target_channel_id
         self.manager = manager
@@ -81,6 +83,7 @@ class AirplaneOwl02(IAirplane):
             mavlink2.MAVLINK_MSG_ID_COMMAND_ACK: self._parse_ack,
             mavlink2.MAVLINK_MSG_ID_GLOBAL_POSITION_INT: self._parse_gps_pos,
             mavlink2.MAVLINK_MSG_ID_BATTERY_STATUS: self._parse_battery_status,
+            mavlink2.MAVLINK_MSG_ID_OBSTACLE_DISTANCE: self._parse_obstacle_distance,
             mavlink2.MAVLINK_MSG_ID_PHOTO_TOTAL_INFORMATION_ADDR_XINGUANGFEI: self.image_receiver.on_image_info,
             mavlink2.MAVLINK_MSG_ID_PHOTO_TRANSMISSION_XINGUANGFEI: self.image_receiver.on_image_packet,
             mavlink2.MAVLINK_MSG_ID_TAKE_PHOTO_ACK_XINGUANGFEI: self.image_receiver.on_take_photo_ack,
@@ -97,6 +100,12 @@ class AirplaneOwl02(IAirplane):
             mavlink2.MAVLINK_MSG_ID_RC_CHANNELS_SCALED,
             mavlink2.MAVLINK_MSG_ID_MISSION_CURRENT,
             mavlink2.MAVLINK_MSG_ID_BATTERY_STATUS,
+            mavlink2.MAVLINK_MSG_ID_OBSTACLE_DISTANCE,
+        }
+
+        self.obstacle_distance_cache_info = {
+            "distance": 0,
+            "last_update_time": 0,
         }
 
         self.is_init = False
@@ -311,9 +320,9 @@ class AirplaneOwl02(IAirplane):
             return _retry_task()
 
     def send_command_without_retry(self, command: int, param1=0, param2=0, param3=0,
-                                 param4=0, param5=0, param6=0, param7=0,
-                                 no_ack: bool = False,
-                                 ack_callback: Optional[Callable[[CommandStatus], None]] = None):
+                                   param4=0, param5=0, param6=0, param7=0,
+                                   no_ack: bool = False,
+                                   ack_callback: Optional[Callable[[CommandStatus], None]] = None):
         return self._send_command_without_retry(
             command, param1, param2, param3,
             param4, param5, param6, param7,
@@ -322,9 +331,9 @@ class AirplaneOwl02(IAirplane):
         )
 
     def _send_command_without_retry(self, command: int, param1=0, param2=0, param3=0,
-                                 param4=0, param5=0, param6=0, param7=0,
-                                 no_ack: bool = False,
-                                 ack_callback: Optional[Callable[[CommandStatus], None]] = None):
+                                    param4=0, param5=0, param6=0, param7=0,
+                                    no_ack: bool = False,
+                                    ack_callback: Optional[Callable[[CommandStatus], None]] = None):
         """
         发送命令不进行重试（单次发送）
         :param command: 命令ID
@@ -427,7 +436,6 @@ class AirplaneOwl02(IAirplane):
         """
         with self.command_lock:
             return self.command_status.get(key)
-
 
     def _cleanup_active_command(self, key: tuple):
         """清理活动命令状态"""
@@ -591,6 +599,19 @@ class AirplaneOwl02(IAirplane):
         logger.debug(f"Battery status from device {self.target_channel_id}: "
                      f"voltage={message.voltages}, current={message.current_battery}, "
                      f"remaining={message.battery_remaining}")
+
+    def _parse_obstacle_distance(self, message: mavlink2.MAVLink_obstacle_distance_message):
+        """解析障碍物距离"""
+        logger.debug(f"Obstacle distance from device {self.target_channel_id}: "
+                     f"distances={message.distances}, sensor_type={message.sensor_type}")
+        self.obstacle_distance_cache_info = {
+            "distance": message.distances[0] if message.distances else 0,
+            "last_update_time": time.time(),
+        }
+        if self.obstacle_distance_change_callback and message.distances:
+            self.obstacle_distance_change_callback(message.distances[0])
+            pass
+        pass
 
     def parse_state_from_mavlink(self, message: Any, raw_packet: bytes = b''):
         """从MavLink消息解析状态"""
