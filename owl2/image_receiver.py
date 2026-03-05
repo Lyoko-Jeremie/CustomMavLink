@@ -726,12 +726,12 @@ class ImageReceiver:
         Args:
             message: MAVLink 807消息对象，包含:
                      - photo_id: 分配的照片ID
-                     - result: 拍照结果（0=成功，其他=失败）
+                     - result: 拍照结果（1=成功，0=失败）
         
         处理逻辑:
             1. 如果等待队列非空，取出队首请求（FIFO匹配）
-               - result=0: 拍照成功，初始化ImageInfo，回调传入photo_id
-               - result!=0: 拍照失败，回调传入None
+               - result=1: 拍照成功，初始化ImageInfo，回调传入photo_id
+               - result=0: 拍照失败，回调传入None
             2. 如果等待队列为空（意外的807消息）
                - 发送808(id=0)清除远端所有图片数据
                - 避免无人机端存储泄漏
@@ -739,6 +739,7 @@ class ImageReceiver:
         注意:
             807消息与286请求是按顺序一一对应的，使用FIFO队列匹配
         """
+        print('ImageReceiver.on_take_photo_ack', message)
         photo_id = message.photo_id
         result = message.result
         print(f'ImageReceiver.on_take_photo_ack: photo_id=[{photo_id}], result=[{result}]')
@@ -749,7 +750,7 @@ class ImageReceiver:
             pending_request = self._pending_capture_requests.popleft()
             print(f'ImageReceiver.on_take_photo_ack: matched pending request')
 
-            if result == 0:
+            if result == 1:
                 # ========== 拍照成功 ==========
                 # 初始化image_table条目，准备接收图像数据
                 if photo_id not in self.image_table:
