@@ -67,8 +67,8 @@ class ImageInfo:
         last_packet_time: 最后一次收到数据包的时间戳，用于单包超时检测
         start_time: 传输开始时间，用于总超时检测
     """
-    photo_id: int                   # 照片ID，由无人机分配
-    total_packets: int              # 数据包总数，从804消息获取
+    photo_id: int  # 照片ID，由无人机分配
+    total_packets: int  # 数据包总数，从804消息获取
     # dict[packet index , tuple(packet checksum, packet data)]
     # 数据包缓存字典，键为包索引，值为(校验和, 64字节数据)的元组
     # 每个数据包固定64字节
@@ -183,37 +183,37 @@ class ImageReceiver:
         TOTAL_TIMEOUT: 总传输超时时间（秒），超时后强制完成
         CAPTURE_TIMEOUT: 拍照命令超时时间（秒）
     """
-    
+
     # 类型注解：关联的无人机实例
     airplane: 'AirplaneOwl02'
     # 图像信息表：photo_id -> ImageInfo 的映射
     image_table: dict[int, ImageInfo]
     # 数据包超时检测定时器
     _timeout_timer: Optional[threading.Timer]
-    
+
     # ==================== 超时和阈值配置 ====================
     # 单包超时时间（秒）
     # 每个包传输约20ms，设置300ms可容忍约15个包的延迟波动
     PACKET_TIMEOUT: float = 0.3
-    
+
     # 乱序容忍阈值
     # 当收到的包索引比期望索引大于此阈值时，才认为中间的包丢失
     # 由于传输过程中可能有其他业务数据穿插，允许轻微乱序
     OUT_OF_ORDER_THRESHOLD: int = 3
-    
+
     # 总超时时间（秒）
     # 整个图像传输的最大等待时间，超时后强制完成（可能图像不完整）
     TOTAL_TIMEOUT: float = 6.0
-    
+
     # 图像接收完成回调函数：function(photo_id: int, image_data: bytes)
     _image_complete_callback: Optional[Callable[[int, bytes], None]]
-    
+
     # 拍照请求等待队列（FIFO顺序），用于匹配807响应
     _pending_capture_requests: deque[PendingCaptureRequest]
-    
+
     # 拍照请求超时检查定时器
     _capture_timeout_timer: Optional[threading.Timer]
-    
+
     # 拍照请求超时时间（秒）
     # 从发送286命令到收到807响应的延迟约2-3秒，设置20秒留有余量
     CAPTURE_TIMEOUT: float = 20.0
@@ -225,12 +225,12 @@ class ImageReceiver:
         Args:
             airplane: 关联的无人机实例，用于发送MAVLink消息
         """
-        self.airplane = airplane              # 保存无人机引用
-        self.image_table = {}                 # 初始化图像信息表
-        self._timeout_timer = None            # 数据包超时定时器
+        self.airplane = airplane  # 保存无人机引用
+        self.image_table = {}  # 初始化图像信息表
+        self._timeout_timer = None  # 数据包超时定时器
         self._image_complete_callback = None  # 完成回调函数
         self._pending_capture_requests = deque()  # 拍照请求队列
-        self._capture_timeout_timer = None    # 拍照超时定时器
+        self._capture_timeout_timer = None  # 拍照超时定时器
         pass
 
     def _clean_image_table(self, photo_id: int = 0):
@@ -332,14 +332,14 @@ class ImageReceiver:
         photo_id = message.photo_id
         total_packets = message.total_num
         print('ImageReceiver.on_image_info: photo_id=[{}], total_packets=[{}]'.format(photo_id, total_packets))
-        
+
         # 如果是新图像，创建ImageInfo；否则更新总包数
         if photo_id not in self.image_table:
             self.image_table[photo_id] = ImageInfo(photo_id=photo_id, total_packets=total_packets)
         else:
             self.image_table[photo_id].total_packets = total_packets
             pass
-        
+
         # 发送806消息（index=255）开始接收数据包
         self._send_start_receive_photo(photo_id=photo_id)
         pass
@@ -370,13 +370,13 @@ class ImageReceiver:
         print('ImageReceiver.on_image_packet: photo_id=[{}], packet_index=[{}]'.format(photo_id, packet_index))
         packet_data = bytes(message.data)
         packet_checksum = message.checksum
-        
+
         # 验证photo_id是否在跟踪列表中
         if photo_id not in self.image_table:
             # 未知的photo_id，发送808清除无人机端数据
             self.send_msg_clear_photo(photo_id=photo_id)
             return
-        
+
         image_info = self.image_table[photo_id]
         # 缓存数据包：键为索引，值为(校验和, 数据)元组
         image_info.packet_cache[packet_index] = (packet_checksum, packet_data)
@@ -391,7 +391,7 @@ class ImageReceiver:
         # ========== 乱序检测和丢包处理 ==========
         # 期望收到的下一个包索引
         expected_index = image_info.max_received_index + 1
-        
+
         # 如果收到的包索引比期望值大很多（超过阈值），认为中间的包丢失了
         if packet_index > expected_index + self.OUT_OF_ORDER_THRESHOLD:
             # 遍历期望索引到当前索引之间的所有索引
@@ -429,7 +429,7 @@ class ImageReceiver:
         # 取消已存在的定时器
         if self._timeout_timer is not None:
             self._timeout_timer.cancel()
-        
+
         # 创建新的定时器，超时后调用_on_timeout
         self._timeout_timer = threading.Timer(self.PACKET_TIMEOUT, self._on_timeout, args=[photo_id])
         self._timeout_timer.daemon = True  # 设为守护线程，主线程退出时自动结束
@@ -533,7 +533,7 @@ class ImageReceiver:
                 # 仍有缺失的包，无法组装完整图像
                 # 正常情况不应该执行到这里
                 return
-        
+
         # 保存组装完成的图像数据
         image_info.image_data = bytes(image_data)
 
@@ -651,13 +651,13 @@ class ImageReceiver:
         # 使用send_command_with_retry但max_retries=0，因为拍照不能重发
         self.airplane.send_command_with_retry(
             mavlink2.MAV_CMD_EXT_DRONE_TAKE_PHOTO,
-            param1=0,              # cmd参数，默认为0
-            timeout=10.0,          # 命令超时时间
-            max_retries=0,         # 不重试，因为拍照命令不是幂等的
-            async_mode=False,      # 同步模式
+            param1=0,  # cmd参数，默认为0
+            timeout=10.0,  # 命令超时时间
+            max_retries=0,  # 不重试，因为拍照命令不是幂等的
+            async_mode=False,  # 同步模式
             ack_callback=lambda x: print(f'ImageReceiver.capture_image: take photo command ack received', x)
         )
-        
+
         pending_count = len(self._pending_capture_requests)
         print(f'ImageReceiver.capture_image: sent take photo command, pending_count=[{pending_count}], waiting for ack')
         pass
@@ -672,7 +672,7 @@ class ImageReceiver:
         # 如果定时器已在运行，不重复启动
         if self._capture_timeout_timer is not None:
             return
-        
+
         # 如果队列为空，无需启动定时器
         if not self._pending_capture_requests:
             return
@@ -755,7 +755,7 @@ class ImageReceiver:
                 # 初始化image_table条目，准备接收图像数据
                 if photo_id not in self.image_table:
                     self.image_table[photo_id] = ImageInfo(photo_id=photo_id, total_packets=0)
-                
+
                 # 调用回调函数，传入分配的photo_id
                 if pending_request.callback is not None:
                     pending_request.callback(photo_id)
