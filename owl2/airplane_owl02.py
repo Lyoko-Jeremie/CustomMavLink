@@ -108,6 +108,12 @@ class AirplaneOwl02(IAirplane):
             "last_update_time": 0,
         }
 
+        self.battery_info_cache_info = {
+            "voltages": 0,
+            "current_battery": 0,
+            "battery_remaining": 0,
+        }
+
         self.is_init = False
         self._lock = threading.Lock()
 
@@ -599,6 +605,11 @@ class AirplaneOwl02(IAirplane):
         logger.debug(f"Battery status from device {self.target_channel_id}: "
                      f"voltage={message.voltages}, current={message.current_battery}, "
                      f"remaining={message.battery_remaining}")
+        self.battery_info_cache_info = {
+            "voltages": message.voltages,
+            "current_battery": message.current_battery,
+            "battery_remaining": message.battery_remaining,
+        }
 
     def _parse_obstacle_distance(self, message: mavlink2.MAVLink_obstacle_distance_message):
         """解析障碍物距离"""

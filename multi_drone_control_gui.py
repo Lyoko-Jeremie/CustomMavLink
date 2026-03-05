@@ -1099,6 +1099,63 @@ class MultiDroneControlGUI:
         obstacle_time_label.pack(side="left", padx=5)
         panel['obstacle_time'] = obstacle_time_label
 
+        # 电池信息显示
+        battery_frame = tk.Frame(frame, bg="#ECF0F1")
+        battery_frame.pack(fill="x", pady=(0, 5))
+
+        tk.Label(
+            battery_frame,
+            text="电池信息:",
+            font=("Arial", 9),
+            bg="#ECF0F1"
+        ).pack(side="left", padx=5)
+
+        battery_remaining_label = tk.Label(
+            battery_frame,
+            text="---",
+            font=("Arial", 9, "bold"),
+            fg="#27AE60",
+            bg="#ECF0F1"
+        )
+        battery_remaining_label.pack(side="left", padx=5)
+        panel['battery_remaining'] = battery_remaining_label
+
+        tk.Label(
+            battery_frame,
+            text="电压:",
+            font=("Arial", 8),
+            fg="#7F8C8D",
+            bg="#ECF0F1"
+        ).pack(side="left", padx=10)
+
+        battery_voltage_label = tk.Label(
+            battery_frame,
+            text="---",
+            font=("Arial", 8),
+            fg="#95A5A6",
+            bg="#ECF0F1"
+        )
+        battery_voltage_label.pack(side="left", padx=5)
+        panel['battery_voltage'] = battery_voltage_label
+
+        tk.Label(
+            battery_frame,
+            text="电流:",
+            font=("Arial", 8),
+            fg="#7F8C8D",
+            bg="#ECF0F1"
+        ).pack(side="left", padx=10)
+
+        battery_current_label = tk.Label(
+            battery_frame,
+            text="---",
+            font=("Arial", 8),
+            fg="#95A5A6",
+            bg="#ECF0F1"
+        )
+        battery_current_label.pack(side="left", padx=5)
+        panel['battery_current'] = battery_current_label
+
         # 快捷操作按钮（两行）
         quick_frame = tk.Frame(frame)
         quick_frame.pack(fill="x", pady=3)
@@ -1763,6 +1820,49 @@ class MultiDroneControlGUI:
                             panel['obstacle_time'].config(text=time_text)
                         else:
                             panel['obstacle_time'].config(text="---")
+
+                    # 更新电池信息
+                    if airplane and hasattr(airplane, 'battery_info_cache_info'):
+                        battery_info = airplane.battery_info_cache_info
+
+                        # 获取电量百分比
+                        battery_remaining = battery_info.get('battery_remaining', 0)
+                        if battery_remaining > 0:
+                            remaining_text = f"{battery_remaining}%"
+                            # 根据电量设置颜色
+                            if battery_remaining > 50:
+                                remaining_color = "#27AE60"  # 绿色
+                            elif battery_remaining > 20:
+                                remaining_color = "#F39C12"  # 橙色
+                            else:
+                                remaining_color = "#E74C3C"  # 红色
+                        else:
+                            remaining_text = "---"
+                            remaining_color = "#27AE60"
+                        panel['battery_remaining'].config(text=remaining_text, fg=remaining_color)
+
+                        # 获取电压 (voltages是一个列表，取第一个电池电压)
+                        voltages = battery_info.get('voltages', 0)
+                        if isinstance(voltages, (list, tuple)) and len(voltages) > 0:
+                            # 电压单位是mV，转换为V显示
+                            voltage_mv = voltages[0]
+                            if voltage_mv > 0 and voltage_mv != 65535:  # 65535表示无效值
+                                voltage_text = f"{voltage_mv / 1000:.2f}V"
+                            else:
+                                voltage_text = "---"
+                        elif isinstance(voltages, (int, float)) and voltages > 0:
+                            voltage_text = f"{voltages / 1000:.2f}V"
+                        else:
+                            voltage_text = "---"
+                        panel['battery_voltage'].config(text=voltage_text)
+
+                        # 获取电流 (单位是10mA，转换为A显示)
+                        current_battery = battery_info.get('current_battery', 0)
+                        if current_battery > 0 and current_battery != -1:  # -1表示无效值
+                            current_text = f"{current_battery / 100:.2f}A"
+                        else:
+                            current_text = "---"
+                        panel['battery_current'].config(text=current_text)
                 except Exception as e:
                     logger.debug(f"更新无人机 {drone_id} 的障碍物距离时出错: {e}")
 
