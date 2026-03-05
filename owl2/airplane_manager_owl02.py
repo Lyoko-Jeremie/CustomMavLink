@@ -102,6 +102,10 @@ class AirplaneManagerOwl02:
                     except Exception as e:
                         print('=====================receive_task stop=================================')
                         logger.error(f"Error processing serial data: {e}")
+                        if f'{e}'.find('PermissionError'):
+                            print('=====================PermissionError stop=================================')
+                            # TODO disconnect COM port and stop manager
+                            pass
                     time.sleep(0.01)  # 避免CPU占用过高
                     pass
             except Exception as e:
@@ -202,7 +206,8 @@ class AirplaneManagerOwl02:
                         self._handle_mavlink_message(device_id, msg, payload)
                 else:
                     # 处理非COMMAND_MSG协议包
-                    logger.debug(f"Received non-COMMAND_MSG packet: device={device_id}, protocol_mode={protocol_mode}, payload_len={len(payload)}")
+                    logger.debug(
+                        f"Received non-COMMAND_MSG packet: device={device_id}, protocol_mode={protocol_mode}, payload_len={len(payload)}")
 
             except Exception as e:
                 logger.error(f"Error processing packet from device {device_id}: {e}")
@@ -363,6 +368,7 @@ class AirplaneManagerOwl02:
 # 全局管理器实例
 _global_manager = None
 
+
 def get_airplane_manager_owl02() -> AirplaneManagerOwl02:
     """获取全局无人机管理器实例"""
     global _global_manager
@@ -370,6 +376,7 @@ def get_airplane_manager_owl02() -> AirplaneManagerOwl02:
         _global_manager = AirplaneManagerOwl02()
         _global_manager.init()
     return _global_manager
+
 
 # 便利函数
 def create_manager_with_serial(port: str, baudrate: int = 115200, timeout: float = 1.0) -> AirplaneManagerOwl02:

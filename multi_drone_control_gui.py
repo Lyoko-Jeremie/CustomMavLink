@@ -12,6 +12,7 @@ import time
 import os
 import io
 from owl2.airplane_manager_owl02 import create_manager_with_serial, AirplaneOwl02
+
 try:
     from PIL import Image, ImageTk
 except ImportError:
@@ -34,6 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Tuple
 import concurrent.futures
 
+
 @dataclass
 class CommandTask:
     """表示要发送给单台无人机的命令任务"""
@@ -44,8 +46,10 @@ class CommandTask:
     retries: int = 1
     on_done: Optional[Callable[[bool, Optional[Exception]], None]] = None
 
+
 class ManagerCommandQueue:
     """并发命令队列：使用线程池并发处理任务，但对串口写操作使用锁序列化"""
+
     def __init__(self, manager, max_workers: int = 16):
         self.manager = manager
         self._write_lock = threading.Lock()
@@ -562,7 +566,8 @@ class MultiDroneControlGUI:
 
         # 鼠标滚轮支持
         def on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
         canvas.bind_all("<MouseWheel>", on_mousewheel)
 
         self.drones_canvas = canvas
@@ -668,7 +673,8 @@ class MultiDroneControlGUI:
         tk.Label(progress_frame, text="传输进度:", font=("Arial", 10)).pack(side="left", padx=5)
 
         # 使用Canvas创建bitmap风格的进度条
-        self.progress_canvas = tk.Canvas(progress_frame, width=200, height=20, bg="#ECF0F1", highlightthickness=1, highlightbackground="#BDC3C7")
+        self.progress_canvas = tk.Canvas(progress_frame, width=200, height=20, bg="#ECF0F1", highlightthickness=1,
+                                         highlightbackground="#BDC3C7")
         self.progress_canvas.pack(side="left", padx=5, fill="x", expand=True)
 
         self.progress_text_label = tk.Label(progress_frame, text="0%", font=("Arial", 9), width=5)
@@ -771,6 +777,7 @@ class MultiDroneControlGUI:
 
     def _start_progress_monitor(self, airplane: AirplaneOwl02, photo_id: int):
         """启动进度监控"""
+
         def update_progress():
             if photo_id not in airplane.image_receiver.image_table:
                 return
@@ -866,7 +873,8 @@ class MultiDroneControlGUI:
                 self.log_message(f"显示图片失败: {e}", "ERROR")
                 self.photo_display_label.config(text=f"图片显示失败\n{e}", image="")
         else:
-            self.photo_display_label.config(text=f"照片已接收\n大小: {len(image_data)} bytes\n\n(需要PIL库才能显示图片)", image="")
+            self.photo_display_label.config(
+                text=f"照片已接收\n大小: {len(image_data)} bytes\n\n(需要PIL库才能显示图片)", image="")
 
         # 自动保存到桌面
         save_path = self._save_image_to_desktop(photo_id, image_data)
@@ -1294,6 +1302,7 @@ class MultiDroneControlGUI:
 
     def disconnect_and_reset(self):
         """断开连接并重置"""
+
         def _disconnect():
             self.log_message("正在断开连接...")
 
@@ -1424,6 +1433,7 @@ class MultiDroneControlGUI:
                             self.log_message(msg, "INFO" if success else "ERROR")
                     except Exception:
                         pass
+
                 return callback
 
             task = CommandTask(
@@ -1744,7 +1754,7 @@ class MultiDroneControlGUI:
                             elif time_diff < 60:
                                 time_text = f"{int(time_diff)}秒前"
                             elif time_diff < 3600:
-                                time_text = f"{int(time_diff/60)}分钟前"
+                                time_text = f"{int(time_diff / 60)}分钟前"
                             else:
                                 # 显示具体时间
                                 from datetime import datetime
@@ -1772,6 +1782,7 @@ class MultiDroneControlGUI:
 
     def run_in_thread(self, func, *args):
         """在线程中运行函数"""
+
         def wrapper():
             try:
                 func(*args)
@@ -1811,4 +1822,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

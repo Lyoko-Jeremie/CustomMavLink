@@ -23,7 +23,7 @@ RECEIVE_COMMAND = 1  # 接收到命令
 FINISH_COMMAND = 2  # 完成动作
 COMMAND_ERROR = 3  # 拒绝执行指令
 
-
+# TODO make it print able
 class CommandStatus:
     """命令状态追踪"""
 

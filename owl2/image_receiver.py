@@ -274,7 +274,7 @@ class ImageReceiver:
             param1=photo_id,
             ack_callback=lambda x: self._clean_image_table(photo_id),
         )
-        print('ImageReceiver.send_msg_clear_photo: photo_id=[{}]'.format(photo_id))
+        print('ImageReceiver.send_msg_clear_photo 808: photo_id=[{}]'.format(photo_id))
         pass
 
     def _send_start_receive_photo(self, photo_id: int):
@@ -287,12 +287,12 @@ class ImageReceiver:
         Args:
             photo_id: 要接收的照片ID
         """
-        self.airplane.send_command_without_retry(
-            mavlink2.MAVLINK_MSG_ID_PHOTO_TOTAL_REQUEST_XINGUANGFEI,
-            param1=photo_id,
-            param2=255,  # 255是特殊值，表示开始接收所有数据包
+        msg = mavlink2.MAVLink_photo_total_request_xinguangfei_message(
+            photo_id=photo_id,
+            index=255,
         )
-        print('ImageReceiver._send_start_receive_photo: photo_id=[{}]'.format(photo_id))
+        self.airplane.send_msg(msg)
+        print('ImageReceiver._send_start_receive_photo 806: photo_id=[{}]'.format(photo_id))
         pass
 
     def _send_msg_request_missing_packet(self, photo_id: int, packet_index: int):
@@ -305,11 +305,12 @@ class ImageReceiver:
             photo_id: 照片ID
             packet_index: 缺失的数据包索引（0-254，255保留为开始传输命令）
         """
-        self.airplane.send_command_without_retry(
-            mavlink2.MAVLINK_MSG_ID_PHOTO_TOTAL_REQUEST_XINGUANGFEI,
-            param1=photo_id,
-            param2=packet_index,
+        msg = mavlink2.MAVLink_photo_total_request_xinguangfei_message(
+            photo_id=photo_id,
+            index=packet_index,
         )
+        self.airplane.send_msg(msg)
+        print('ImageReceiver._send_msg_request_missing_packet 806: photo_id=[{}]'.format(photo_id))
         pass
 
     def on_image_info(self, message: mavlink2.MAVLink_photo_total_information_addr_xinguangfei_message):
@@ -331,7 +332,9 @@ class ImageReceiver:
         """
         photo_id = message.photo_id
         total_packets = message.total_num
-        print('ImageReceiver.on_image_info: photo_id=[{}], total_packets=[{}]'.format(photo_id, total_packets))
+        print('ImageReceiver.on_image_info 804: photo_id=[{}], total_packets=[{}]'.format(photo_id, total_packets))
+
+        # TODO check we need receive this photo_id or not, if not, send 808 to clear data and return
 
         # 如果是新图像，创建ImageInfo；否则更新总包数
         if photo_id not in self.image_table:
@@ -367,9 +370,11 @@ class ImageReceiver:
         """
         photo_id = message.photo_id
         packet_index = message.index
-        print('ImageReceiver.on_image_packet: photo_id=[{}], packet_index=[{}]'.format(photo_id, packet_index))
+        print('ImageReceiver.on_image_packet 805: photo_id=[{}], packet_index=[{}]'.format(photo_id, packet_index))
         packet_data = bytes(message.data)
         packet_checksum = message.checksum
+        # print(packet_data)
+        # print(packet_checksum)
 
         # 验证photo_id是否在跟踪列表中
         if photo_id not in self.image_table:
@@ -652,11 +657,22 @@ class ImageReceiver:
         self.airplane.send_command_without_retry(
             mavlink2.MAV_CMD_EXT_DRONE_TAKE_PHOTO,
             param1=0,  # cmd参数，默认为0
-            ack_callback=lambda x: print(f'ImageReceiver.capture_image: take photo command ack received', x)
+            ack_callback=lambda x: print(f'ImageReceiver.capture_image: take photo command sended', x)
         )
 
         pending_count = len(self._pending_capture_requests)
-        print(f'ImageReceiver.capture_image: sent take photo command, pending_count=[{pending_count}], waiting for ack')
+        print(f'ImageReceiver.capture_image 286: sent take photo command, pending_count=[{pending_count}], waiting for ack')
+
+        # # TODO follow is debug code, remove it later
+        # def debug_1():
+        #     while True:
+        #         self.debug_send_start_receive_photo(1)
+        #         time.sleep(0.1)
+        #         pass
+        #     pass
+        #
+        # debug_thread = threading.Thread(target=debug_1, daemon=True)
+        # debug_thread.start()
         pass
 
     def _start_capture_timeout_checker(self):
@@ -736,16 +752,21 @@ class ImageReceiver:
         注意:
             807消息与286请求是按顺序一一对应的，使用FIFO队列匹配
         """
-        print('ImageReceiver.on_take_photo_ack', message)
+        print('ImageReceiver.on_take_photo_ack 807', message)
         photo_id = message.photo_id
         result = message.result
-        print(f'ImageReceiver.on_take_photo_ack: photo_id=[{photo_id}], result=[{result}]')
+        print(f'ImageReceiver.on_take_photo_ack 807: photo_id=[{photo_id}], result=[{result}]')
+
+        # if photo_id exist in image_table, means its a re-send, skip it
+        if photo_id in self.image_table:
+            print(f'ImageReceiver.on_take_photo_ack 807: photo_id=[{photo_id}] already exist in image_table, skip it')
+            return
 
         # 检查是否有等待中的拍照请求
         if self._pending_capture_requests:
             # 从队列头部取出最早的请求（FIFO顺序匹配）
             pending_request = self._pending_capture_requests.popleft()
-            print(f'ImageReceiver.on_take_photo_ack: matched pending request')
+            print(f'ImageReceiver.on_take_photo_ack 807: matched pending request')
 
             if result == 1:
                 # ========== 拍照成功 ==========
@@ -765,6 +786,6 @@ class ImageReceiver:
             # ========== 意外的807消息 ==========
             # 没有等待的请求，可能是之前的请求已超时被移除
             # 为避免无人机端存储泄漏，发送808清除所有图片数据
-            print('ImageReceiver.on_take_photo_ack: no pending request, clearing remote photo data')
+            print('ImageReceiver.on_take_photo_ack 807: no pending request, clearing remote photo data')
             self.send_msg_clear_photo(photo_id=0)
         pass
