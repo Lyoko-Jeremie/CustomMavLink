@@ -649,12 +649,9 @@ class ImageReceiver:
 
         # 发送286拍照命令
         # 使用send_command_with_retry但max_retries=0，因为拍照不能重发
-        self.airplane.send_command_with_retry(
+        self.airplane.send_command_without_retry(
             mavlink2.MAV_CMD_EXT_DRONE_TAKE_PHOTO,
             param1=0,  # cmd参数，默认为0
-            timeout=10.0,  # 命令超时时间
-            max_retries=0,  # 不重试，因为拍照命令不是幂等的
-            async_mode=False,  # 同步模式
             ack_callback=lambda x: print(f'ImageReceiver.capture_image: take photo command ack received', x)
         )
 
