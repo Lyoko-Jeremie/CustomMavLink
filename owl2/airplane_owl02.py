@@ -232,7 +232,7 @@ class AirplaneOwl02(IAirplane):
             if max_retries is not None:
                 _max_retries = max_retries
 
-            while retry_count <= _max_retries:
+            while retry_count < _max_retries:
                 # 检查是否已被停止
                 with self.command_lock:
                     status = self.command_status.get(key)
