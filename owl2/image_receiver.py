@@ -373,8 +373,8 @@ class ImageReceiver:
         print('ImageReceiver.on_image_packet 805: photo_id=[{}], packet_index=[{}]'.format(photo_id, packet_index))
         packet_data = bytes(message.data)
         packet_checksum = message.checksum
-        # print(packet_data)
-        # print(packet_checksum)
+        print('packet_data', packet_data.hex())
+        print('packet_checksum', packet_checksum)
 
         # 验证photo_id是否在跟踪列表中
         if photo_id not in self.image_table:
@@ -661,7 +661,8 @@ class ImageReceiver:
         )
 
         pending_count = len(self._pending_capture_requests)
-        print(f'ImageReceiver.capture_image 286: sent take photo command, pending_count=[{pending_count}], waiting for ack')
+        print(
+            f'ImageReceiver.capture_image 286: sent take photo command, pending_count=[{pending_count}], waiting for ack')
 
         # # TODO follow is debug code, remove it later
         # def debug_1():
